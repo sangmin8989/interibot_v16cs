@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+//
+// --------------------
+//   MODELS (추가 부분)
+// --------------------
+//
+
+model User {
+  id        Int        @id @default(autoincrement())
+  createdAt DateTime   @default(now())
+  name      String?
+  estimates Estimate[]
+}
+
+model Estimate {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+  userId       Int?
+  areaPyeong   Int
+  traitsJson   Json     // 고객 성향 저장
+  estimateJson Json     // 견적 JSON 저장
+
+  user User?   @relation(fields: [userId], references: [id])
+}
+
+// 품목 마스터 (200개 품목 데이터)
+model ItemMaster {
+  id              Int      @id @default(autoincrement())
+  processCode     Int      // 100~1000 (공정 코드)
+  processName     String   // "철거/가설공사", "목공사/가구공사"
+  itemCode        String   // "101", "201"
+  itemName        String   // "철거공사", "신발장"
+  spec            String?  // "400문 짝형", "2400H"
+  unit            String   // "인", "짝", "m"
+  basicPrice      Int      // Basic 등급 단가
+  standardPrice   Int      // Standard 등급 단가
+  premiumPrice    Int      // Premium 등급 단가
+  isArgen         Boolean  @default(false)  // 아르젠 제작 여부
+  displayOrder    Int      // 표시 순서
+  createdAt       DateTime @default(now())
+
+  @@index([processCode])
+  @@index([itemCode])
+}
+
+// 견적 품목 상세 (각 견적서의 품목별 내역)
+model EstimateItem {
+  id                Int      @id @default(autoincrement())
+  estimateId        String   // 견적서 고유 ID
+  itemId            Int      // ItemMaster 참조
+  quantity          Float    // 수량
+  unitPrice         Int      // 적용 단가
+  materialCost      Int      // 재료비
+  laborCost         Int      // 노무비
+  expenseCost       Int      // 경비
+  totalCost         Int      // 합계
+  isRecommended     Boolean  @default(false)  // 성향 기반 추천 항목
+  adjustmentReason  String?  // "수납 부족 → +3짝"
+  createdAt         DateTime @default(now())
+
+  @@index([estimateId])
+  @@index([itemId])
+}
+
+// 성향 가중치 규칙
+model TraitWeight {
+  id              Int      @id @default(autoincrement())
+  traitName       String   // "수납 부족", "아이 있음"
+  processCode     Int      // 적용 공정 (200, 1000...)
+  conditionScore  Int      // Q1=1, Q2=3 (질문 답변 조건)
+  weightPercent   Float    // 0.3 = 30% 증가
+  itemCodes       String   // JSON 문자열: '["201","202"]'
+  actionType      String   // "increase_quantity", "add_item"
+
+  @@index([processCode])
+}

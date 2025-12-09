@@ -1,0 +1,57 @@
+# 인테리봇 프로젝트 Cursor 규칙
+
+## 파일 수정 규칙
+1. 파일 수정 시 기존 내용을 복사/붙여넣기 하지 말고, 필요한 부분만 수정
+2. 새 파일 생성 시 반드시 UTF-8 인코딩 사용
+3. 한 파일에 같은 변수/타입/함수를 중복 선언하지 않음
+4. export 문은 파일당 한 번만 작성
+5. 기존 파일 수정 시 전체 덮어쓰기 금지, 부분 수정만 허용
+
+## 빌드 체크
+1. 파일 3개 이상 수정 후에는 반드시 npm run build 실행
+2. 빌드 에러 발생 시 즉시 수정, 다음 작업 진행하지 않음
+3. 타입 에러는 무시하지 않고 반드시 해결
+4. 빌드 성공 확인 후에만 다음 단계 진행
+
+## 금지 사항
+1. worktrees에서 파일 복사 금지
+2. xcopy, copy 명령어로 파일 복사 금지
+3. 같은 파일을 반복해서 수정하지 않음
+4. 한 번에 10개 이상 파일 수정 금지
+
+## 인코딩
+1. 모든 파일은 UTF-8 (BOM 없음)
+2. 한글 포함 파일 저장 시 인코딩 확인
+3. 인코딩 에러 발생 시 파일 새로 생성 (복사 금지)
+
+## 작업 순서
+1. 수정 전 현재 상태 확인
+2. 최소한의 변경만 수행
+3. 수정 후 즉시 테스트
+4. 에러 발생 시 즉시 롤백
+
+## 중복 방지
+1. import 문 중복 확인
+2. export 문 중복 확인
+3. 변수/함수/타입 선언 중복 확인
+4. 파일 끝에 같은 코드 반복 붙여넣기 금지
+프로젝트 루트에 .cursorrules 파일 생성해줘.
+
+내용:
+- 모든 주석은 영문으로만 작성
+- 한글 주석 사용 금지
+- JSDoc 주석(/** */)도 영문으로만 작성
+- 파일 인코딩은 UTF-8 유지
+- console.log는 개발용으로만 사용하고 배포 전 제거
+- TypeScript strict 모드 준수
+- 컴포넌트 파일명은 PascalCase
+- 함수/변수명은 camelCase
+- import 경로는 @/ alias 사용
+
+## 오늘 수정 금지 파일 (보호)
+- types/process-options.ts
+- constants/process-definitions.ts
+- constants/process-mapping.ts
+- components/onboarding/process/TierOptionSelector.tsx
+- app/onboarding/process-new/page.tsx
+- lib/store/processStore.ts

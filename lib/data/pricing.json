@@ -1,0 +1,1042 @@
+{
+  "version": "2.0.0",
+  "last_updated": "2025-11-22",
+  "base_year": 2025,
+  "currency": "KRW",
+  "vat_rate": 0.1,
+  "description": "아르젠 실제 견적 기준으로 조정된 데이터",
+  
+  "base_by_size": [
+    {
+      "size_range": "10py",
+      "size_min": 10,
+      "size_max": 19,
+      "basic": 20000000,
+      "standard": 25000000,
+      "premium": 32000000,
+      "note": "10~19평 기준 기본 금액 (VAT 제외)"
+    },
+    {
+      "size_range": "20py",
+      "size_min": 20,
+      "size_max": 29,
+      "basic": 28000000,
+      "standard": 36000000,
+      "premium": 48000000,
+      "note": "20~29평 기준 기본 금액 (VAT 제외)"
+    },
+    {
+      "size_range": "30py",
+      "size_min": 30,
+      "size_max": 39,
+      "basic": 38000000,
+      "standard": 48000000,
+      "premium": 65000000,
+      "note": "30~39평 기준 기본 금액 (VAT 제외)"
+    },
+    {
+      "size_range": "40py",
+      "size_min": 40,
+      "size_max": 49,
+      "basic": 45000000,
+      "standard": 50000000,
+      "premium": 70000000,
+      "note": "40~49평 기준 기본 금액 (VAT 제외), 43평 Standard = 5,000만원 목표"
+    },
+    {
+      "size_range": "50py",
+      "size_min": 50,
+      "size_max": 99,
+      "basic": 60000000,
+      "standard": 75000000,
+      "premium": 100000000,
+      "note": "50평 이상 기준 기본 금액 (VAT 제외)"
+    }
+  ],
+  
+  "process_ratio": {
+    "description": "전체 리모델링 기준 공정별 비율 (직접공사비 기준)",
+    "default": {
+      "100": 0.22,
+      "200": 0.28,
+      "300": 0.09,
+      "400": 0.14,
+      "500": 0.06,
+      "600": 0.04,
+      "700": 0.02,
+      "800": 0.06,
+      "900": 0.04,
+      "1000": 0.05
+    },
+    "by_area_selection": {
+      "description": "영역 선택에 따른 공정 비율 조정",
+      "kitchen_only": {
+        "100": 0.45,
+        "200": 0.15,
+        "300": 0.12,
+        "400": 0.05,
+        "500": 0.08,
+        "600": 0.05,
+        "700": 0.03,
+        "800": 0.02,
+        "900": 0.03,
+        "1000": 0.02
+      },
+      "bathroom_only": {
+        "100": 0.05,
+        "200": 0.10,
+        "300": 0.08,
+        "400": 0.50,
+        "500": 0.15,
+        "600": 0.05,
+        "700": 0.02,
+        "800": 0.02,
+        "900": 0.02,
+        "1000": 0.01
+      },
+      "living_room_only": {
+        "100": 0.05,
+        "200": 0.40,
+        "300": 0.12,
+        "400": 0.05,
+        "500": 0.08,
+        "600": 0.10,
+        "700": 0.05,
+        "800": 0.08,
+        "900": 0.05,
+        "1000": 0.02
+      }
+    }
+  },
+  
+  "process_groups": [
+    {
+      "code": "100",
+      "name": "주방/다용도실 공사",
+      "category": "주방",
+      "display_order": 1,
+      "items": [
+        {
+          "item_code": "101",
+          "item_name": "싱크대 하부장",
+          "spec": "6000mm",
+          "unit": "m",
+          "basic_price": 90000,
+          "standard_price": 110000,
+          "premium_price": 140000,
+          "is_argen_make": true,
+          "note": "ㄱ자 기준"
+        },
+        {
+          "item_code": "102",
+          "item_name": "싱크대 상부장",
+          "spec": "6000mm",
+          "unit": "m",
+          "basic_price": 65000,
+          "standard_price": 80000,
+          "premium_price": 105000,
+          "is_argen_make": true,
+          "note": ""
+        },
+        {
+          "item_code": "103",
+          "item_name": "아일랜드장",
+          "spec": "2100×700",
+          "unit": "자",
+          "basic_price": 150000,
+          "standard_price": 190000,
+          "premium_price": 250000,
+          "is_argen_make": true,
+          "note": "수납형"
+        },
+        {
+          "item_code": "104",
+          "item_name": "다용도실 상부장",
+          "spec": "1240W",
+          "unit": "set",
+          "basic_price": 280000,
+          "standard_price": 360000,
+          "premium_price": 480000,
+          "is_argen_make": true,
+          "note": ""
+        },
+        {
+          "item_code": "105",
+          "item_name": "냉장고장",
+          "spec": "2100×2300×800D",
+          "unit": "식",
+          "basic_price": 650000,
+          "standard_price": 850000,
+          "premium_price": 1150000,
+          "is_argen_make": true,
+          "note": "장식장 포함"
+        },
+        {
+          "item_code": "106",
+          "item_name": "키큰장",
+          "spec": "500×2300×300D",
+          "unit": "식",
+          "basic_price": 290000,
+          "standard_price": 390000,
+          "premium_price": 520000,
+          "is_argen_make": true,
+          "note": "틈새 수납"
+        },
+        {
+          "item_code": "107",
+          "item_name": "대리석 상판",
+          "spec": "8100×700",
+          "unit": "자평",
+          "basic_price": 110000,
+          "standard_price": 140000,
+          "premium_price": 190000,
+          "is_argen_make": false,
+          "note": "인조/천연"
+        },
+        {
+          "item_code": "108",
+          "item_name": "싱크볼",
+          "spec": "사각/860",
+          "unit": "ea",
+          "basic_price": 280000,
+          "standard_price": 380000,
+          "premium_price": 550000,
+          "is_argen_make": false,
+          "note": "백조/한샘"
+        },
+        {
+          "item_code": "109",
+          "item_name": "후드",
+          "spec": "매입형",
+          "unit": "set",
+          "basic_price": 250000,
+          "standard_price": 320000,
+          "premium_price": 480000,
+          "is_argen_make": false,
+          "note": "하츠/린나이"
+        },
+        {
+          "item_code": "110",
+          "item_name": "수전",
+          "spec": "폭포수 1홀",
+          "unit": "ea",
+          "basic_price": 150000,
+          "standard_price": 200000,
+          "premium_price": 320000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "111",
+          "item_name": "인건비(가구)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 220000,
+          "standard_price": 260000,
+          "premium_price": 300000,
+          "is_argen_make": false,
+          "note": "설치·조립"
+        }
+      ]
+    },
+    {
+      "code": "200",
+      "name": "목공사/가구공사",
+      "category": "목공",
+      "display_order": 2,
+      "items": [
+        {
+          "item_code": "201",
+          "item_name": "신발장",
+          "spec": "400문",
+          "unit": "짝",
+          "basic_price": 55000,
+          "standard_price": 75000,
+          "premium_price": 105000,
+          "is_argen_make": true,
+          "note": "1200W 기준"
+        },
+        {
+          "item_code": "202",
+          "item_name": "수납장(대)",
+          "spec": "400문",
+          "unit": "짝",
+          "basic_price": 55000,
+          "standard_price": 75000,
+          "premium_price": 105000,
+          "is_argen_make": true,
+          "note": "방 수납"
+        },
+        {
+          "item_code": "203",
+          "item_name": "붙박이장",
+          "spec": "2400×2300×600D",
+          "unit": "자",
+          "basic_price": 280000,
+          "standard_price": 380000,
+          "premium_price": 520000,
+          "is_argen_make": true,
+          "note": "슬라이딩"
+        },
+        {
+          "item_code": "204",
+          "item_name": "드레스룸장",
+          "spec": "3600×2300 전면",
+          "unit": "식",
+          "basic_price": 1800000,
+          "standard_price": 2400000,
+          "premium_price": 3200000,
+          "is_argen_make": true,
+          "note": "시스템장"
+        },
+        {
+          "item_code": "205",
+          "item_name": "아치 입구",
+          "spec": "사각문틀",
+          "unit": "식",
+          "basic_price": 90000,
+          "standard_price": 120000,
+          "premium_price": 170000,
+          "is_argen_make": true,
+          "note": "목재 프레임"
+        },
+        {
+          "item_code": "206",
+          "item_name": "도어세트",
+          "spec": "방/화장실",
+          "unit": "개소",
+          "basic_price": 320000,
+          "standard_price": 450000,
+          "premium_price": 650000,
+          "is_argen_make": false,
+          "note": "영림/ABS"
+        },
+        {
+          "item_code": "207",
+          "item_name": "중문",
+          "spec": "3연동 슬라이드",
+          "unit": "개소",
+          "basic_price": 1200000,
+          "standard_price": 1540000,
+          "premium_price": 2100000,
+          "is_argen_make": false,
+          "note": "LG/KCC"
+        },
+        {
+          "item_code": "208",
+          "item_name": "천정몰딩",
+          "spec": "마이너스/중백",
+          "unit": "m",
+          "basic_price": 4500,
+          "standard_price": 6000,
+          "premium_price": 9000,
+          "is_argen_make": false,
+          "note": "간접조명용"
+        },
+        {
+          "item_code": "209",
+          "item_name": "걸레받이",
+          "spec": "8전 평몰딩",
+          "unit": "m",
+          "basic_price": 3500,
+          "standard_price": 4500,
+          "premium_price": 6500,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "210",
+          "item_name": "우물천정",
+          "spec": "MD 마감",
+          "unit": "개소",
+          "basic_price": 150000,
+          "standard_price": 200000,
+          "premium_price": 300000,
+          "is_argen_make": true,
+          "note": "거실"
+        },
+        {
+          "item_code": "211",
+          "item_name": "화장대",
+          "spec": "PET무광/거울",
+          "unit": "개소",
+          "basic_price": 650000,
+          "standard_price": 850000,
+          "premium_price": 1200000,
+          "is_argen_make": true,
+          "note": "조명 포함"
+        },
+        {
+          "item_code": "212",
+          "item_name": "아트월",
+          "spec": "MD·석고",
+          "unit": "개소",
+          "basic_price": 150000,
+          "standard_price": 200000,
+          "premium_price": 320000,
+          "is_argen_make": true,
+          "note": "거실 포인트"
+        },
+        {
+          "item_code": "213",
+          "item_name": "가벽 재마감",
+          "spec": "MD·석고",
+          "unit": "개소",
+          "basic_price": 110000,
+          "standard_price": 150000,
+          "premium_price": 220000,
+          "is_argen_make": true,
+          "note": "베란다"
+        },
+        {
+          "item_code": "214",
+          "item_name": "책상(붙박이)",
+          "spec": "1800×600×750H",
+          "unit": "식",
+          "basic_price": 380000,
+          "standard_price": 520000,
+          "premium_price": 750000,
+          "is_argen_make": true,
+          "note": "서재/아이방"
+        },
+        {
+          "item_code": "215",
+          "item_name": "침대 헤드",
+          "spec": "2000W 패브릭",
+          "unit": "식",
+          "basic_price": 450000,
+          "standard_price": 650000,
+          "premium_price": 950000,
+          "is_argen_make": true,
+          "note": "안방"
+        },
+        {
+          "item_code": "216",
+          "item_name": "TV장",
+          "spec": "2400W 수납형",
+          "unit": "식",
+          "basic_price": 780000,
+          "standard_price": 1050000,
+          "premium_price": 1450000,
+          "is_argen_make": true,
+          "note": "거실"
+        },
+        {
+          "item_code": "217",
+          "item_name": "시스템선반",
+          "spec": "가변형",
+          "unit": "m",
+          "basic_price": 85000,
+          "standard_price": 120000,
+          "premium_price": 180000,
+          "is_argen_make": true,
+          "note": "서재"
+        },
+        {
+          "item_code": "218",
+          "item_name": "펜트리장",
+          "spec": "1500W×2300H",
+          "unit": "식",
+          "basic_price": 950000,
+          "standard_price": 1280000,
+          "premium_price": 1750000,
+          "is_argen_make": true,
+          "note": "주방 수납"
+        },
+        {
+          "item_code": "219",
+          "item_name": "슬라이딩장",
+          "spec": "2400W",
+          "unit": "식",
+          "basic_price": 850000,
+          "standard_price": 1150000,
+          "premium_price": 1600000,
+          "is_argen_make": true,
+          "note": "안방"
+        },
+        {
+          "item_code": "220",
+          "item_name": "신발장(대형)",
+          "spec": "2400W×2300H",
+          "unit": "식",
+          "basic_price": 1200000,
+          "standard_price": 1600000,
+          "premium_price": 2200000,
+          "is_argen_make": true,
+          "note": "현관 맞춤"
+        },
+        {
+          "item_code": "221",
+          "item_name": "인건비(목공)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 320000,
+          "standard_price": 380000,
+          "premium_price": 450000,
+          "is_argen_make": false,
+          "note": "시공·설치"
+        }
+      ]
+    },
+    {
+      "code": "300",
+      "name": "전기/통신공사",
+      "category": "전기",
+      "display_order": 3,
+      "items": [
+        {
+          "item_code": "301",
+          "item_name": "기본 배선",
+          "spec": "전열·전등·스위치",
+          "unit": "py",
+          "basic_price": 25000,
+          "standard_price": 30000,
+          "premium_price": 40000,
+          "is_argen_make": false,
+          "note": "평당 단가"
+        },
+        {
+          "item_code": "302",
+          "item_name": "인덕션 배선",
+          "spec": "단독 차단기/4sq",
+          "unit": "식",
+          "basic_price": 90000,
+          "standard_price": 120000,
+          "premium_price": 160000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "303",
+          "item_name": "에어컨 배선",
+          "spec": "전용 회로",
+          "unit": "개소",
+          "basic_price": 85000,
+          "standard_price": 110000,
+          "premium_price": 150000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "304",
+          "item_name": "콘센트 증설",
+          "spec": "2구 매입형",
+          "unit": "ea",
+          "basic_price": 35000,
+          "standard_price": 45000,
+          "premium_price": 60000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "305",
+          "item_name": "콘센트 증설",
+          "spec": "4구 매입형",
+          "unit": "ea",
+          "basic_price": 48000,
+          "standard_price": 62000,
+          "premium_price": 85000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "306",
+          "item_name": "USB 콘센트",
+          "spec": "2구+USB",
+          "unit": "ea",
+          "basic_price": 55000,
+          "standard_price": 75000,
+          "premium_price": 105000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "307",
+          "item_name": "스위치 교체",
+          "spec": "3구 터치식",
+          "unit": "ea",
+          "basic_price": 38000,
+          "standard_price": 52000,
+          "premium_price": 75000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "308",
+          "item_name": "간접조명",
+          "spec": "LED 바/m당",
+          "unit": "m",
+          "basic_price": 12000,
+          "standard_price": 18000,
+          "premium_price": 28000,
+          "is_argen_make": false,
+          "note": "천정·벽"
+        },
+        {
+          "item_code": "309",
+          "item_name": "다운라이트",
+          "spec": "매입형 LED",
+          "unit": "ea",
+          "basic_price": 28000,
+          "standard_price": 38000,
+          "premium_price": 55000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "310",
+          "item_name": "펜던트 조명",
+          "spec": "식탁용",
+          "unit": "ea",
+          "basic_price": 120000,
+          "standard_price": 180000,
+          "premium_price": 280000,
+          "is_argen_make": false,
+          "note": "고급형"
+        },
+        {
+          "item_code": "318",
+          "item_name": "인건비(전기)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 250000,
+          "standard_price": 300000,
+          "premium_price": 380000,
+          "is_argen_make": false,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "code": "400",
+      "name": "욕실/수전공사",
+      "category": "욕실",
+      "display_order": 4,
+      "items": [
+        {
+          "item_code": "401",
+          "item_name": "방수공사",
+          "spec": "3차 책임방수",
+          "unit": "실",
+          "basic_price": 380000,
+          "standard_price": 475000,
+          "premium_price": 650000,
+          "is_argen_make": false,
+          "note": "안방/공용 각"
+        },
+        {
+          "item_code": "402",
+          "item_name": "비데일체형 양변기",
+          "spec": "이누스/대림",
+          "unit": "ea",
+          "basic_price": 480000,
+          "standard_price": 650000,
+          "premium_price": 950000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "403",
+          "item_name": "세면기",
+          "spec": "다리형+수전",
+          "unit": "ea",
+          "basic_price": 250000,
+          "standard_price": 320000,
+          "premium_price": 480000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "404",
+          "item_name": "레인샤워 수전",
+          "spec": "니켈무광",
+          "unit": "ea",
+          "basic_price": 120000,
+          "standard_price": 153000,
+          "premium_price": 250000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "406",
+          "item_name": "샤워파티션",
+          "spec": "730 검정유리",
+          "unit": "ea",
+          "basic_price": 135000,
+          "standard_price": 169000,
+          "premium_price": 250000,
+          "is_argen_make": false,
+          "note": "아쿠아슬라이드"
+        },
+        {
+          "item_code": "407",
+          "item_name": "욕실장(슬라이딩)",
+          "spec": "1200/조명",
+          "unit": "ea",
+          "basic_price": 150000,
+          "standard_price": 190000,
+          "premium_price": 280000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "420",
+          "item_name": "인건비(수전)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 200000,
+          "standard_price": 250000,
+          "premium_price": 320000,
+          "is_argen_make": false,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "code": "500",
+      "name": "타일/석재공사",
+      "category": "타일",
+      "display_order": 5,
+      "items": [
+        {
+          "item_code": "501",
+          "item_name": "욕실 벽타일",
+          "spec": "300×600",
+          "unit": "m²",
+          "basic_price": 28000,
+          "standard_price": 35000,
+          "premium_price": 52000,
+          "is_argen_make": false,
+          "note": "베이스"
+        },
+        {
+          "item_code": "502",
+          "item_name": "욕실 바닥타일",
+          "spec": "300×300",
+          "unit": "m²",
+          "basic_price": 28000,
+          "standard_price": 35000,
+          "premium_price": 52000,
+          "is_argen_make": false,
+          "note": "논슬립"
+        },
+        {
+          "item_code": "503",
+          "item_name": "주방 벽타일",
+          "spec": "600×600",
+          "unit": "m²",
+          "basic_price": 32000,
+          "standard_price": 40000,
+          "premium_price": 60000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "504",
+          "item_name": "베란다 타일",
+          "spec": "600×600",
+          "unit": "m²",
+          "basic_price": 32000,
+          "standard_price": 40000,
+          "premium_price": 60000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "512",
+          "item_name": "탄성줄눈",
+          "spec": "욕실·다용도",
+          "unit": "실",
+          "basic_price": 250000,
+          "standard_price": 400000,
+          "premium_price": 600000,
+          "is_argen_make": false,
+          "note": "2개소"
+        },
+        {
+          "item_code": "516",
+          "item_name": "인건비(타일)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 280000,
+          "standard_price": 350000,
+          "premium_price": 450000,
+          "is_argen_make": false,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "code": "600",
+      "name": "도장/마감공사",
+      "category": "도장",
+      "display_order": 6,
+      "items": [
+        {
+          "item_code": "601",
+          "item_name": "탄성코트",
+          "spec": "현관·다용도",
+          "unit": "실",
+          "basic_price": 380000,
+          "standard_price": 550000,
+          "premium_price": 780000,
+          "is_argen_make": false,
+          "note": "친환경"
+        },
+        {
+          "item_code": "602",
+          "item_name": "수성페인트",
+          "spec": "천정·벽",
+          "unit": "m²",
+          "basic_price": 4500,
+          "standard_price": 6500,
+          "premium_price": 9500,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "612",
+          "item_name": "인건비(도장)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 200000,
+          "standard_price": 250000,
+          "premium_price": 320000,
+          "is_argen_make": false,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "code": "700",
+      "name": "필름/시트공사",
+      "category": "필름",
+      "display_order": 7,
+      "items": [
+        {
+          "item_code": "701",
+          "item_name": "인테리어 필름",
+          "spec": "샤시·신발장",
+          "unit": "m²",
+          "basic_price": 12000,
+          "standard_price": 15000,
+          "premium_price": 22000,
+          "is_argen_make": false,
+          "note": "홈CC"
+        },
+        {
+          "item_code": "702",
+          "item_name": "우드필름",
+          "spec": "가구용",
+          "unit": "m²",
+          "basic_price": 14000,
+          "standard_price": 18000,
+          "premium_price": 28000,
+          "is_argen_make": false,
+          "note": "고급 패턴"
+        },
+        {
+          "item_code": "710",
+          "item_name": "인건비(필름)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 220000,
+          "standard_price": 280000,
+          "premium_price": 360000,
+          "is_argen_make": false,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "code": "800",
+      "name": "창호/샤시공사",
+      "category": "창호",
+      "display_order": 8,
+      "items": [
+        {
+          "item_code": "801",
+          "item_name": "터닝도어",
+          "spec": "다용도실 850",
+          "unit": "개소",
+          "basic_price": 580000,
+          "standard_price": 750000,
+          "premium_price": 1050000,
+          "is_argen_make": false,
+          "note": "KCC/LG"
+        },
+        {
+          "item_code": "804",
+          "item_name": "중문(3연동)",
+          "spec": "1550×2200 슬라이드",
+          "unit": "개소",
+          "basic_price": 1200000,
+          "standard_price": 1540000,
+          "premium_price": 2100000,
+          "is_argen_make": false,
+          "note": "슬림형"
+        },
+        {
+          "item_code": "811",
+          "item_name": "인건비(샤시)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 220000,
+          "standard_price": 280000,
+          "premium_price": 380000,
+          "is_argen_make": false,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "code": "900",
+      "name": "도배/벽지공사",
+      "category": "도배",
+      "display_order": 9,
+      "items": [
+        {
+          "item_code": "901",
+          "item_name": "천정 합지",
+          "spec": "LG/신한벽지",
+          "unit": "m²",
+          "basic_price": 7000,
+          "standard_price": 9000,
+          "premium_price": 13000,
+          "is_argen_make": false,
+          "note": "친환경"
+        },
+        {
+          "item_code": "902",
+          "item_name": "벽 실크벽지",
+          "spec": "LG/신한벽지",
+          "unit": "m²",
+          "basic_price": 8500,
+          "standard_price": 11000,
+          "premium_price": 16000,
+          "is_argen_make": false,
+          "note": ""
+        },
+        {
+          "item_code": "910",
+          "item_name": "인건비(도배)",
+          "spec": "기공",
+          "unit": "인",
+          "basic_price": 200000,
+          "standard_price": 250000,
+          "premium_price": 320000,
+          "is_argen_make": false,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "code": "1000",
+      "name": "철거/폐기공사",
+      "category": "기타",
+      "display_order": 10,
+      "items": [
+        {
+          "item_code": "1001",
+          "item_name": "철거공사",
+          "spec": "욕실·수납·싱크",
+          "unit": "인",
+          "basic_price": 200000,
+          "standard_price": 250000,
+          "premium_price": 320000,
+          "is_argen_make": false,
+          "note": "3인 2일"
+        },
+        {
+          "item_code": "1002",
+          "item_name": "폐기물처리",
+          "spec": "대형폐기물",
+          "unit": "대",
+          "basic_price": 480000,
+          "standard_price": 550000,
+          "premium_price": 700000,
+          "is_argen_make": false,
+          "note": "2톤 기준"
+        },
+        {
+          "item_code": "1005",
+          "item_name": "입주청소",
+          "spec": "py당",
+          "unit": "py",
+          "basic_price": 16000,
+          "standard_price": 20000,
+          "premium_price": 28000,
+          "is_argen_make": false,
+          "note": "전문업체"
+        }
+      ]
+    }
+  ],
+  
+  "size_base_estimate": [
+    {
+      "size_range": "10py",
+      "size_min": 10,
+      "size_max": 19,
+      "basic_min": 18000000,
+      "basic_max": 22000000,
+      "standard_min": 22000000,
+      "standard_max": 28000000,
+      "premium_min": 28000000,
+      "premium_max": 36000000,
+      "note": "하위 호환성 유지용 (deprecated: base_by_size 사용 권장)"
+    },
+    {
+      "size_range": "20py",
+      "size_min": 20,
+      "size_max": 29,
+      "basic_min": 25000000,
+      "basic_max": 32000000,
+      "standard_min": 32000000,
+      "standard_max": 42000000,
+      "premium_min": 42000000,
+      "premium_max": 55000000,
+      "note": "하위 호환성 유지용 (deprecated: base_by_size 사용 권장)"
+    },
+    {
+      "size_range": "30py",
+      "size_min": 30,
+      "size_max": 39,
+      "basic_min": 38000000,
+      "basic_max": 48000000,
+      "standard_min": 48000000,
+      "standard_max": 62000000,
+      "premium_min": 62000000,
+      "premium_max": 80000000,
+      "note": "하위 호환성 유지용 (deprecated: base_by_size 사용 권장)"
+    },
+    {
+      "size_range": "40py",
+      "size_min": 40,
+      "size_max": 49,
+      "basic_min": 45000000,
+      "basic_max": 50000000,
+      "standard_min": 50000000,
+      "standard_max": 60000000,
+      "premium_min": 70000000,
+      "premium_max": 90000000,
+      "validation_note": "43평 Standard = 5,000만원 (VAT 제외) 목표",
+      "note": "하위 호환성 유지용 (deprecated: base_by_size 사용 권장)"
+    },
+    {
+      "size_range": "50py",
+      "size_min": 50,
+      "size_max": 99,
+      "basic_min": 60000000,
+      "basic_max": 75000000,
+      "standard_min": 75000000,
+      "standard_max": 95000000,
+      "premium_min": 100000000,
+      "premium_max": 130000000,
+      "note": "하위 호환성 유지용 (deprecated: base_by_size 사용 권장)"
+    }
+  ]
+}
+
+
+

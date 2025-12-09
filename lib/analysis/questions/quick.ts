@@ -1,0 +1,73 @@
+import { Question } from './types';
+
+export const quickQuestions: Question[] = [
+  {
+    id: 'quick_first_scene',
+    category: 'home_purpose',
+    mode: 'quick',
+    title: '퇴근해서 현관을 열었을 때, 제일 먼저 보이고 싶은 장면은 무엇인가요?',
+    type: 'single',
+    options: [
+      { id: 'hotel_hallway', text: '호텔 복도처럼 깔끔하게 정리된 현관과 복도', value: 'hotel_hallway', icon: '🏨' },
+      { id: 'warm_kitchen', text: '따뜻한 조명 아래 식탁과 주방이 보이는 장면', value: 'warm_kitchen', icon: '🍳' },
+      { id: 'cozy_living', text: '큰 소파와 TV가 있는 편안한 거실', value: 'cozy_living', icon: '🛋️' },
+      { id: 'family_space', text: '아이·반려동물이 편하게 지내는 아늑한 공간', value: 'family_space', icon: '🐕' },
+      { id: 'aesthetic_decor', text: '포인트 소품과 액자로 꾸며진 감성 있는 연출', value: 'aesthetic_decor', icon: '🖼️' },
+      { id: 'ai_choice', text: '잘 모르겠어요. 이 선택은 인테리봇이 대신 골라줘요', value: 'ai_choice', icon: '🤖' },
+    ],
+    required: true,
+    weight: 1.5,
+  },
+  {
+    id: 'quick_photo_space',
+    category: 'hobby_lifestyle',
+    mode: 'quick',
+    title: '집에서 "사진 찍어 올리고 싶은 공간"을 하나 만든다면 어디인가요?',
+    type: 'single',
+    options: [
+      { id: 'living_room', text: '거실', value: 'living_room', icon: '🛋️' },
+      { id: 'kitchen', text: '주방·식탁', value: 'kitchen', icon: '🍽️' },
+      { id: 'bedroom', text: '침실', value: 'bedroom', icon: '🛏️' },
+      { id: 'bathroom', text: '욕실', value: 'bathroom', icon: '🛁' },
+      { id: 'workspace', text: '작업방·서재·취미공간', value: 'workspace', icon: '📚' },
+      { id: 'ai_choice', text: '지금은 감이 안 와요. 이 항목은 인테리봇에 맡길게요', value: 'ai_choice', icon: '🤖' },
+    ],
+    required: true,
+    weight: 1.5,
+  },
+  {
+    id: 'quick_no_compromise',
+    category: 'discomfort_factors',
+    mode: 'quick',
+    title: '인테리어에서 절대 타협하고 싶지 않은 한 가지는 무엇인가요?',
+    type: 'single',
+    options: [
+      { id: 'natural_light', text: '채광(햇빛, 창 방향 등)', value: 'natural_light', icon: '☀️' },
+      { id: 'lighting', text: '조명 분위기(색온도, 직부등/간접등 등)', value: 'lighting', icon: '💡' },
+      { id: 'storage', text: '수납력(수납장, 붙박이장, 팬트리 등)', value: 'storage', icon: '📦' },
+      { id: 'finish_quality', text: '마감 퀄리티(도장, 타일, 몰딩, 줄눈 등)', value: 'finish_quality', icon: '✨' },
+      { id: 'flow', text: '동선(움직이기 편한 구조, 동작 동선)', value: 'flow', icon: '🚶' },
+      { id: 'ai_choice', text: '판단이 어렵네요. 인테리봇 AI가 나중에 보완합니다', value: 'ai_choice', icon: '🤖' },
+    ],
+    required: true,
+    weight: 2.0,
+  },
+  {
+    id: 'quick_atmosphere',
+    category: 'home_purpose',
+    mode: 'quick',
+    title: '앞으로 집의 전체 분위기를 한 단어로 바꿀 수 있다면, 어떤 느낌이 가장 가깝나요?',
+    type: 'single',
+    options: [
+      { id: 'healing', text: '힐링(쉼, 회복)', value: 'healing', icon: '🌿' },
+      { id: 'focus', text: '집중(일·공부·창작)', value: 'focus', icon: '🎯' },
+      { id: 'family', text: '가족(함께 모이는 공간)', value: 'family', icon: '👨‍👩‍👧‍👦' },
+      { id: 'leisure', text: '여유(라운지, 호텔 같은 느낌)', value: 'leisure', icon: '🏖️' },
+      { id: 'success', text: '성공·재도약(업그레이드, 자기계발, 상징성)', value: 'success', icon: '🚀' },
+      { id: 'ai_choice', text: '그냥 느낌대로 가고 싶어요. 인테리봇이 분위기에 맞게 잡아줘요', value: 'ai_choice', icon: '🤖' },
+    ],
+    required: true,
+    weight: 2.0,
+  },
+];
+

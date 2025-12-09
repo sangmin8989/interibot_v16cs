@@ -1,0 +1,251 @@
+{
+    "version": "2.0.0",
+    "last_updated": "2025-11-22",
+    "description": "아르젠 인테리봇 견적 엔진 완전 개편 버전",
+    
+    "calculation_engine": {
+      "weight_strategy": "max_only",
+      "rule": "각 trait에서 발생한 가중치 중 '동일 공정'에 대해 최댓값만 적용",
+      "example": "trait_weights=[3,2,6,3,4] → final_weight=6%",
+      "benefit": "목공 단가 폭등 방지"
+    },
+  
+    "process_structure": {
+      "kitchen_100": ["101","102","103","104","105","106"],
+      "woodwork_200_separated": {
+        "210": ["문틀", "문짝", "문선"],
+        "220": ["붙박이장"],
+        "230": ["거실수납장"],
+        "240": ["아일랜드", "주방가구"],
+        "250": ["기타 맞춤가구"]
+      },
+      "electrical_300": ["301","302","303","304","305","308","309","310"],
+      "bathroom_400": ["401","402"],
+      "tile_500": ["501","502","503"],
+      "paint_600": ["601","602"],
+      "sheet_700": ["701","702"],
+      "window_800": ["801","804"],
+      "wallpaper_900": ["901","902"]
+    },
+  
+    "base_cost_rules": {
+      "explanation": "각 공정 기본금액을 묶음이 아닌 item 단위로 계산",
+      "formula": "final_cost = base_cost * (1 + weight/100)",
+      "woodwork_200_separated_examples": {
+        "210": "문틀·도어 단가만 적용",
+        "220": "붙박이장 m/자 단독 계산",
+        "230": "거실수납장 단가별 계산",
+        "240": "아일랜드/주방가구 매장가 기준",
+        "250": "기타 가구는 개별 견적"
+      },
+      "effect": "가중치가 전체 금액을 밀어올리는 구조 제거"
+    },
+  
+    "trait_definitions": [
+      {
+        "trait_id": "T01",
+        "trait_name": "공간 감각",
+        "questions": [
+          "현재 집에서 공간이 부족하다고 느끼나요?",
+          "물건을 둘 때 동선을 많이 고려하시나요?",
+          "가구 배치를 자주 바꾸시나요?"
+        ]
+      },
+      {
+        "trait_id": "T02",
+        "trait_name": "시각 민감도",
+        "questions": [
+          "벽지나 가구 색이 조금만 안 맞아도 신경 쓰이나요?",
+          "인테리어 사진을 자주 보시나요?",
+          "마감재 디테일을 중요하게 생각하시나요?"
+        ]
+      },
+      {
+        "trait_id": "T03",
+        "trait_name": "청각 민감도",
+        "questions": [
+          "집 안 소음이 스트레스인가요?",
+          "층간소음이나 외부 소음에 예민한가요?",
+          "조용한 환경을 중요하게 생각하나요?"
+        ]
+      },
+      {
+        "trait_id": "T04",
+        "trait_name": "청소 성향",
+        "questions": [
+          "청소를 얼마나 자주 하시나요?",
+          "먼지가 쌓이면 스트레스인가요?",
+          "청소 쉬운 자재를 선호하나요?"
+        ]
+      },
+      {
+        "trait_id": "T05",
+        "trait_name": "정리정돈 습관",
+        "questions": [
+          "물건이 밖에 나와있으면 불편한가요?",
+          "수납공간이 항상 부족하다고 느끼나요?",
+          "숨기는 수납을 선호하시나요?"
+        ]
+      },
+      {
+        "trait_id": "T06",
+        "trait_name": "가족 구성",
+        "questions": [
+          "함께 사는 가족 구성원은?",
+          "아이가 있나요?",
+          "반려동물이 있나요?"
+        ]
+      },
+      {
+        "trait_id": "T07",
+        "trait_name": "건강 요소",
+        "questions": [
+          "알레르기가 있나요?",
+          "화학물질에 민감한가요?",
+          "친환경 자재를 중요하게 생각하나요?"
+        ]
+      },
+      {
+        "trait_id": "T08",
+        "trait_name": "예산 감각",
+        "questions": [
+          "예산이 얼마나 정해져 있나요?",
+          "가성비를 중요하게 보나요?",
+          "브랜드보다 실속을 보나요?"
+        ]
+      },
+      {
+        "trait_id": "T09",
+        "trait_name": "색감 취향",
+        "questions": [
+          "밝은 톤 vs 어두운 톤",
+          "따뜻한 vs 차가운 톤",
+          "화이트·그레이·베이지·우드 중 선호?"
+        ]
+      },
+      {
+        "trait_id": "T10",
+        "trait_name": "조명 취향",
+        "questions": [
+          "밝은 조명 vs 은은한 조명",
+          "간접조명을 좋아하나요?",
+          "조명으로 분위기를 만드는 걸 중요하게 생각하나요?"
+        ]
+      },
+      {
+        "trait_id": "T11",
+        "trait_name": "집 사용 목적",
+        "questions": [
+          "재택근무를 하시나요?",
+          "집에서 시간을 어디에 쓰나요?",
+          "손님 초대를 자주 하나요?"
+        ]
+      },
+      {
+        "trait_id": "T12",
+        "trait_name": "불편 요소",
+        "questions": [
+          "현재 집에서 가장 불편한 점은?",
+          "결로/누수/곰팡이 문제는?",
+          "수납/동선/소음 중 개선하고 싶은 건?"
+        ]
+      },
+      {
+        "trait_id": "T13",
+        "trait_name": "활동 동선",
+        "questions": [
+          "아침 동선은?",
+          "요리를 자주 하나요?",
+          "집 안 이동이 많은가요?"
+        ]
+      },
+      {
+        "trait_id": "T14",
+        "trait_name": "수면 패턴",
+        "questions": [
+          "빛에 민감한가요?",
+          "소음 때문에 잠을 설치나요?",
+          "침실 환경이 중요한가요?"
+        ]
+      },
+      {
+        "trait_id": "T15",
+        "trait_name": "취미·라이프스타일",
+        "questions": [
+          "집에서 하는 취미는?",
+          "운동·독서·요리·영화 중 무엇?",
+          "홈짐/서재 같은 공간 필요한가?"
+        ]
+      }
+    ],
+  
+    "weight_matrix": [
+      {
+        "trait_id": "T01",
+        "impacts": [
+          { "process": "220", "weight_low": 0, "weight_mid": 3, "weight_high": 8 },
+          { "process": "230", "weight_low": 0, "weight_mid": 2, "weight_high": 5 }
+        ]
+      },
+      {
+        "trait_id": "T04",
+        "impacts": [
+          { "process": "210", "weight_low": 0, "weight_mid": 2, "weight_high": 4 }
+        ]
+      },
+      {
+        "trait_id": "T05",
+        "impacts": [
+          { "process": "220", "weight_low": 0, "weight_mid": 6, "weight_high": 12 },
+          { "process": "230", "weight_low": 0, "weight_mid": 5, "weight_high": 10 }
+        ]
+      },
+      {
+        "trait_id": "T06",
+        "impacts": [
+          { "process": "220", "weight_low": 0, "weight_mid": 3, "weight_high": 6 }
+        ]
+      },
+      {
+        "trait_id": "T11",
+        "impacts": [
+          { "process": "240", "weight_low": 0, "weight_mid": 4, "weight_high": 10 }
+        ]
+      },
+      {
+        "trait_id": "T13",
+        "impacts": [
+          { "process": "240", "weight_low": 0, "weight_mid": 2, "weight_high": 5 }
+        ]
+      },
+      {
+        "trait_id": "T14",
+        "impacts": [
+          { "process": "250", "weight_low": 0, "weight_mid": 3, "weight_high": 8 }
+        ]
+      },
+      {
+        "trait_id": "T15",
+        "impacts": [
+          { "process": "214", "weight_low": 0, "weight_mid": 5, "weight_high": 12 }
+        ]
+      }
+    ],
+  
+    "calculation_rules": {
+      "scoring_method": "0~100 점수화",
+      "weight_application": "max_only",
+      "formula": "final_cost = base_cost * (1 + weight/100)",
+      "argen_priority": "is_argen_make=true 항목 우선 제시",
+      "weight_limits": {
+        "description": "성향 가중치 제한 규칙",
+        "max_per_process": 30,
+        "max_total": 30,
+        "min_adjustment": -20,
+        "max_adjustment": 30,
+        "note": "각 공정별 최대 ±30% 제한, 전체 최대 ±30% 제한으로 과도한 변동 방지"
+      }
+    }
+  }
+  
+

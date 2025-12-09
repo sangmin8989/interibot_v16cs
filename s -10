@@ -1,0 +1,50 @@
+[33mcommit 78833cc56593dfd2e05bae312ee9fbdeed195268[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m
+Author: sangmin8989 <busup8989@gmail.com>
+Date:   Thu Nov 27 14:56:46 2025 +0900
+
+    feat: ?⑤낫???뚮줈??4?④퀎 ?꾩꽦
+
+app/api/analysis/preference/route.ts
+app/api/recommend/process/route.ts
+app/globals.css
+app/icon.tsx
+app/onboarding/ai-recommendation/page.tsx
+app/onboarding/estimate/page.tsx
+app/onboarding/personality/page.tsx
+app/privacy/page.tsx
+app/process-options/page.tsx
+app/process-select/page.tsx
+app/space-info/page.tsx
+app/terms/page.tsx
+app/vibe-framework/page.tsx
+components/analysis/ProgressBar.tsx
+components/analysis/ZodiacModal.tsx
+components/onboarding/StepIndicator.tsx
+docs/ERROR_FIX_REPORT.md
+docs/FAVICON_FIX.md
+docs/FINAL_CHECK_REPORT.md
+docs/NEW_FLOW.md
+docs/ONBOARDING_IMPLEMENTATION_STATUS.md
+docs/PROCESS_MAPPING_TEST.md
+docs/process-options-flow.md
+lib/analysis/vibeAnalyzer.ts
+lib/data/anchor-apartment-18py.ts
+lib/data/anchor-apartment-43py.ts
+lib/data/anchor-types.ts
+lib/data/housing-type-adjustments.ts
+lib/data/personalityQuestions.ts
+lib/estimate/__tests__/anchor-calculator.test.ts
+lib/estimate/calculator.ts
+lib/estimate/v2/brand-data.ts
+lib/estimate/v2/calculator-with-master.ts
+lib/estimate/v2/indirect-costs.ts
+lib/estimate/v2/labor-calculator.ts
+lib/store/personalityStore.ts
+lib/store/spaceInfoStore.ts
+lib/utils/analysisInterpreter.ts
+lib/utils/apiError.ts
+lib/utils/indirect-cost.ts
+package-lock.json
+package.json
+tailwind.config.js
+test-bathroom-unified.js
