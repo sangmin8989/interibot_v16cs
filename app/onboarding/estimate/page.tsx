@@ -14,9 +14,8 @@ import { SPACE_NAMES } from '@/constants/spaces'
 // 공정별 Before/After 이미지 생성 타입
 type ProcessImageType = '철거' | '주방' | '욕실' | '타일' | '목공' | '전기' | '도배' | '필름'
 
-// ✅ V3 계산기 사용 (새로운 아르젠 단가 시스템)
+// ✅ V3 계산기 타입 (API 호출로 변경)
 import { 
-  calculateFullEstimateV3, 
   type FullEstimateV3,
   type EstimateInputV3,
   type SelectedSpace as V3SelectedSpace,
@@ -405,7 +404,7 @@ function EstimatePageContent() {
       return
     }
     
-    const calculate = () => {
+    const calculate = async () => {
       if (!spaceInfo) {
         setError('공간 정보가 없습니다. 집 정보를 먼저 입력해주세요.')
         setIsCalculating(false)
@@ -650,11 +649,47 @@ function EstimatePageContent() {
           입력방식: spaceInfo.inputMethod
         })
 
-        // 4등급 모두 계산
-        const basicEstimate = calculateFullEstimateV3({ ...baseInput, grade: 'BASIC' })
-        const standardEstimate = calculateFullEstimateV3({ ...baseInput, grade: 'STANDARD' })
-        const argenEstimate = calculateFullEstimateV3({ ...baseInput, grade: 'ARGEN' })
-        const premiumEstimate = calculateFullEstimateV3({ ...baseInput, grade: 'PREMIUM' })
+        // 4등급 모두 계산 (API 병렬 호출)
+        const [basicRes, standardRes, argenRes, premiumRes] = await Promise.all([
+          fetch('/api/estimate/v3', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...baseInput, grade: 'BASIC' })
+          }),
+          fetch('/api/estimate/v3', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...baseInput, grade: 'STANDARD' })
+          }),
+          fetch('/api/estimate/v3', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...baseInput, grade: 'ARGEN' })
+          }),
+          fetch('/api/estimate/v3', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...baseInput, grade: 'PREMIUM' })
+          })
+        ])
+        
+        // 응답 파싱
+        const [basicData, standardData, argenData, premiumData] = await Promise.all([
+          basicRes.json(),
+          standardRes.json(),
+          argenRes.json(),
+          premiumRes.json()
+        ])
+        
+        // 에러 체크
+        if (!basicData.success || !standardData.success || !argenData.success || !premiumData.success) {
+          throw new Error(basicData.error || standardData.error || argenData.error || premiumData.error || '견적 계산에 실패했습니다.')
+        }
+        
+        const basicEstimate = basicData.data
+        const standardEstimate = standardData.data
+        const argenEstimate = argenData.data
+        const premiumEstimate = premiumData.data
 
         console.log('✅ V3 견적 결과:', {
           평수: py,
