@@ -87,7 +87,7 @@ export function createCacheKey(prefix: string, ...parts: (string | number)[]): C
  * )
  * ```
  */
-export async function getCachedOrFetch<T>(
+export async function getCachedOrFetch<T extends {}>(
   cache: LRUCache<CacheKey, T>,
   key: CacheKey,
   fetchFn: () => Promise<T>
