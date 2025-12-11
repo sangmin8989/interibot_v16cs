@@ -3,22 +3,34 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Supabase 환경변수가 설정되지 않았습니다. ' +
-    '.env.local 파일에 NEXT_PUBLIC_SUPABASE_URL과 NEXT_PUBLIC_SUPABASE_ANON_KEY를 설정해주세요.'
-  )
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false, // Next.js에서는 세션 유지 필요 없음
+// 빌드 타임에는 환경 변수가 없을 수 있으므로, 런타임에 체크
+// 더미 URL과 키로 클라이언트 생성 (실제 사용 시 에러 발생)
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: false, // Next.js에서는 세션 유지 필요 없음
+    },
   },
-})
+)
+
+// 환경 변수 검증 함수 (런타임에 호출)
+export function validateSupabaseConfig() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      'Supabase 환경변수가 설정되지 않았습니다. ' +
+      '.env.local 파일에 NEXT_PUBLIC_SUPABASE_URL과 NEXT_PUBLIC_SUPABASE_ANON_KEY를 설정해주세요.'
+    )
+  }
+}
 
 // 연결 테스트 함수
 export async function testSupabaseConnection() {
   try {
+    // 환경 변수 검증
+    validateSupabaseConfig()
+    
     console.log('🔍 Supabase 연결 테스트 시작...')
     console.log('  URL:', supabaseUrl)
     console.log('  KEY 존재:', !!supabaseAnonKey)

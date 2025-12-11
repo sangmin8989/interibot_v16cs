@@ -21,6 +21,11 @@ import type { Grade } from '@/lib/data/pricing-v3/types'
  */
 export async function getTilePriceFromDB(grade: Grade): Promise<number> {
   try {
+    // 환경 변수 검증 (런타임에만 체크)
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error('Supabase 환경변수가 설정되지 않았습니다.')
+    }
+    
     const gradeMap: Record<Grade, string> = {
       'BASIC': 'basic',
       'STANDARD': 'standard',
