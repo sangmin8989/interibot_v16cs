@@ -1,0 +1,350 @@
+{
+  "version": "3.0.0",
+  "description": "12개 성향 지표 정의",
+  "indicators": [
+    {
+      "id": "수납중요도",
+      "code": "T01",
+      "name": "수납중요도",
+      "description": "수납 공간, 정리 시스템의 중요도. 높을수록 붙박이장, 수납장, 팬트리 등을 중시함",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "수납 우선순위 낮음",
+          "description": "미니멀 라이프 또는 물건이 적은 편"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "수납 적정 수준",
+          "description": "기본적인 수납 공간만 확보"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "수납 매우 중요",
+          "description": "붙박이장, 팬트리, 시스템 선반 등 필수"
+        }
+      }
+    },
+    {
+      "id": "동선중요도",
+      "code": "T02",
+      "name": "동선중요도",
+      "description": "이동 효율, 공간 배치의 중요도. 높을수록 주방 삼각동선, 욕실 접근성, 현관 동선 등을 중시함",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "동선 민감도 낮음",
+          "description": "공간 분위기가 더 중요"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "동선 적정 고려",
+          "description": "불편하지 않은 수준"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "동선 최적화 필수",
+          "description": "아침 준비, 요리, 청소 동선 매우 중요"
+        }
+      }
+    },
+    {
+      "id": "조명취향",
+      "code": "T03",
+      "name": "조명취향",
+      "description": "조명, 빛 환경에 대한 민감도 및 선호도. 높을수록 간접조명, 분위기 조명, 조도 조절 중시",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "조명 무관심",
+          "description": "기본 조명만으로 충분"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "조명 일부 관심",
+          "description": "거실이나 침실 정도 신경씀"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "조명 감성 중시",
+          "description": "간접조명, 무드등, 조도 조절 필수"
+        }
+      }
+    },
+    {
+      "id": "소음민감도",
+      "code": "T04",
+      "name": "소음민감도",
+      "description": "소음, 방음에 대한 민감도. 높을수록 방음문, 바닥재, 벽체 방음 처리 중시",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "소음 둔감",
+          "description": "소음이 크게 신경 쓰이지 않음"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "소음 보통 민감",
+          "description": "심한 소음만 불편"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "소음 매우 민감",
+          "description": "방음문, 방음 처리 필수"
+        }
+      }
+    },
+    {
+      "id": "관리민감도",
+      "code": "T05",
+      "name": "관리민감도",
+      "description": "청소, 유지보수 편의성에 대한 중요도. 높을수록 청소하기 쉬운 마감재, 관리 쉬운 구조 선호",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "관리 무관심",
+          "description": "디자인이 더 중요"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "관리 적정 고려",
+          "description": "너무 힘든 건 피하는 정도"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "관리 최우선",
+          "description": "무광 타일, 청소 쉬운 상판, 강화마루 선호"
+        }
+      }
+    },
+    {
+      "id": "스타일고집도",
+      "code": "T06",
+      "name": "스타일고집도",
+      "description": "인테리어 스타일, 디자인에 대한 고집 정도. 높을수록 특정 스타일, 감성 연출 중시",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "스타일 무관심",
+          "description": "무난하고 실용적이면 충분"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "스타일 어느정도 관심",
+          "description": "트렌드 따라가는 정도"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "스타일 강한 고집",
+          "description": "특정 스타일 완성 중시 (북유럽, 모던 등)"
+        }
+      }
+    },
+    {
+      "id": "색감취향",
+      "code": "T07",
+      "name": "색감취향",
+      "description": "색상, 분위기에 대한 선호 강도. 높을수록 색감 조합, 포인트 컬러 중시",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "색감 무관심",
+          "description": "화이트 톤이면 충분"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "색감 적정 고려",
+          "description": "우드 톤 또는 베이지 정도"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "색감 중시",
+          "description": "포인트 컬러, 색상 조합 중요"
+        }
+      }
+    },
+    {
+      "id": "가족영향도",
+      "code": "T08",
+      "name": "가족영향도",
+      "description": "가족 구성원 고려 정도. 높을수록 아이, 부모님, 가족 동선 등을 우선 고려",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "1인 중심",
+          "description": "본인 위주 공간 구성"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "가족 일부 고려",
+          "description": "부부 또는 성인 가족"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "가족 최우선",
+          "description": "아이, 부모님 고려한 설계"
+        }
+      }
+    },
+    {
+      "id": "반려동물영향도",
+      "code": "T09",
+      "name": "반려동물영향도",
+      "description": "반려동물 고려 정도. 높을수록 바닥재, 내구성, 수납 등 반려동물 중심 설계",
+      "min": 0,
+      "max": 100,
+      "default": 0,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "반려동물 없음 또는 무관심",
+          "description": "반려동물 고려 불필요"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "반려동물 일부 고려",
+          "description": "소형 반려동물 또는 적당히 고려"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "반려동물 최우선",
+          "description": "바닥재, 벽지, 수납 등 반려동물 중심"
+        }
+      }
+    },
+    {
+      "id": "예산탄력성",
+      "code": "T10",
+      "name": "예산탄력성",
+      "description": "예산 유연성 (낮음=최소 비용, 높음=투자 의향). 높을수록 투자 가치, 프리미엄 자재 수용",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "예산 최소화",
+          "description": "필수만, 가성비 최우선"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "예산 적정 수준",
+          "description": "합리적 범위 내 투자"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "예산 유연",
+          "description": "가치 있으면 투자 가능"
+        }
+      }
+    },
+    {
+      "id": "공사복잡도수용성",
+      "code": "T11",
+      "name": "공사복잡도수용성",
+      "description": "구조 변경, 복잡한 공사 수용도. 높을수록 벽 철거, 욕실 이동 등 수용 가능",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "간단한 공사만",
+          "description": "도배, 장판, 조명 정도"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "일부 구조 변경 가능",
+          "description": "방문 교체, 붙박이장 정도"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "구조 변경 수용",
+          "description": "벽 철거, 욕실 확장 등 가능"
+        }
+      }
+    },
+    {
+      "id": "집값방어의식",
+      "code": "T12",
+      "name": "집값방어의식",
+      "description": "재판매 가치 고려 정도. 높을수록 집값 상승, 매매 시 강점 포인트 중시",
+      "min": 0,
+      "max": 100,
+      "default": 50,
+      "unit": "점",
+      "interpretation": {
+        "low": {
+          "range": [0, 33],
+          "label": "실거주 중심",
+          "description": "본인 만족이 최우선"
+        },
+        "medium": {
+          "range": [34, 66],
+          "label": "집값 일부 고려",
+          "description": "너무 특이한 건 피하는 정도"
+        },
+        "high": {
+          "range": [67, 100],
+          "label": "집값 방어 중시",
+          "description": "주방, 욕실, 바닥 투자 우선"
+        }
+      }
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

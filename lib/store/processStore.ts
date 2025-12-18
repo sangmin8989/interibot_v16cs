@@ -15,11 +15,10 @@ type ProcessSelection = Record<ProcessCategory, string | string[] | null>
 // 모든 공간의 공정 선택값
 type SelectedProcessesBySpace = Record<SpaceId, ProcessSelection>
 
-// 새 공정 구조용 타입 (10개 공정 + 4단 옵션)
-interface TierSelection {
-  enabled: boolean
-  tier: OptionTier
-}
+// ✅ 헌법 적용: TierSelection 타입 제거 (tierSelections 제거)
+
+// 공정 모드 타입 (헌법 5-2: 명시적 선택만)
+export type ProcessMode = 'FULL' | 'PARTIAL'
 
 interface ProcessStore {
   // === 기존 공정 선택 (호환성 유지) ===
@@ -32,12 +31,11 @@ interface ProcessStore {
   clearProcessesForSpace: (spaceId: SpaceId) => void
   clearAllProcesses: () => void // ✅ 모든 공정 초기화
   
-  // === 새 공정 구조 (10개 공정 + 4단 옵션) ===
-  tierSelections: Record<string, TierSelection>
-  setTierSelection: (processId: string, selection: TierSelection) => void
-  setAllTierSelections: (selections: Record<string, TierSelection>) => void
-  getTierSelections: () => Record<string, TierSelection>
-  clearAllTierSelections: () => void // ✅ 모든 티어 선택 초기화
+  // ✅ 헌법 적용: 전체/부분 공정 모드 (헌법 5-2)
+  processMode: ProcessMode
+  setProcessMode: (mode: ProcessMode) => void
+  
+  // ✅ 헌법 적용: tierSelections 제거 - processSelections만 SSOT로 사용
 }
 
 // 빈 공정 선택값 생성
@@ -54,25 +52,20 @@ const createEmptySelection = (): ProcessSelection => ({
   balcony_core: null,
 })
 
-// 새 공정 구조 초기값 생성 (모든 공정 비활성화 - 사용자가 직접 선택해야 활성화됨)
-const createInitialTierSelections = (): Record<string, TierSelection> => {
-  const initial: Record<string, TierSelection> = {}
-  
-  PROCESS_DEFINITIONS.forEach(process => {
-    initial[process.id] = {
-      enabled: false, // 기본값: 비활성화 (사용자가 선택해야 활성화)
-      tier: 'comfort',
-    }
-  })
-  
-  return initial
-}
+// ✅ 헌법 적용: createInitialTierSelections 함수 제거
 
 export const useProcessStore = create<ProcessStore>()(
   persist(
     (set, get) => ({
       // === 기존 공정 선택 상태 및 액션 (호환성 유지) ===
       selectedProcessesBySpace: {} as SelectedProcessesBySpace,
+      
+      // ✅ 헌법 적용: 전체/부분 공정 모드 (헌법 5-2: 명시적 선택만)
+      processMode: 'PARTIAL' as ProcessMode, // 기본값: 부분 공정
+      
+      setProcessMode: (mode) => {
+        set({ processMode: mode })
+      },
 
       setSpaceProcessSelection: (spaceId, category, value) => {
         const current = get().selectedProcessesBySpace
@@ -153,31 +146,7 @@ export const useProcessStore = create<ProcessStore>()(
         set({ selectedProcessesBySpace: {} as SelectedProcessesBySpace })
       },
 
-      // === 새 공정 구조 상태 및 액션 (10개 공정 + 4단 옵션) ===
-      tierSelections: createInitialTierSelections(),
-
-      setTierSelection: (processId, selection) => {
-        const current = get().tierSelections
-        set({
-          tierSelections: {
-            ...current,
-            [processId]: selection,
-          },
-        })
-      },
-
-      setAllTierSelections: (selections) => {
-        set({ tierSelections: selections })
-      },
-
-      getTierSelections: () => {
-        return get().tierSelections
-      },
-
-      // ✅ 모든 티어 선택 초기화
-      clearAllTierSelections: () => {
-        set({ tierSelections: createInitialTierSelections() })
-      },
+      // ✅ 헌법 적용: tierSelections 제거 완료 - processSelections만 SSOT로 사용
     }),
     {
       name: 'process-selection-storage',

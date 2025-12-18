@@ -15,13 +15,13 @@ interface StepIndicatorProps {
   steps?: Step[]  // 선택적 (기본값: DEFAULT_STEPS)
 }
 
-// 기본 6단계 정의
+// 기본 6단계 정의 (새 플로우: 집 정보 → 성향 분석 → 공사 범위 → 공정 선택 → 결과 화면 → 견적 확인)
 export const DEFAULT_STEPS: Step[] = [
   { number: 1, label: '집 정보', description: '기본 정보', icon: '🏠' },
-  { number: 2, label: '공간 선택', description: '범위 설정', icon: '📍' },
-  { number: 3, label: '성향 분석', description: '취향 파악', icon: '🎨' },
+  { number: 2, label: '성향 분석', description: '취향 파악', icon: '🎨' },
+  { number: 3, label: '공사 범위', description: '범위 설정', icon: '📍' },
   { number: 4, label: '공정 선택', description: '세부 공정', icon: '🔧' },
-  { number: 5, label: '세부 옵션', description: '상세 설정', icon: '⚙️' },
+  { number: 5, label: '결과 화면', description: 'AI 분석', icon: '✨' },
   { number: 6, label: '견적 확인', description: '최종 확인', icon: '📋' },
 ]
 

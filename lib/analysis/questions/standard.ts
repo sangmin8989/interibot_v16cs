@@ -1,4 +1,5 @@
 import { Question } from './types';
+import { judgmentAxesQuestions } from './judgment-axes';
 
 export const standardQuestions: Question[] = [
   {
@@ -201,4 +202,7 @@ export const standardQuestions: Question[] = [
     required: false,
     weight: 1.0,
   },
+  
+  // 판단 축 측정용 질문 6개 (통합 설계서 기준)
+  ...judgmentAxesQuestions,
 ];

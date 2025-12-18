@@ -5,32 +5,77 @@ import { useState, useEffect, useRef } from 'react'
 interface FamilySizeSectionProps {
   selectedFamilySize: string | null
   onSelect: (familySize: string) => void
-  onTotalPeopleChange?: (count: number) => void // ✅ totalPeople 변경 콜백 추가
+  onTotalPeopleChange?: (count: number) => void
+  initialTotalPeople?: number // ✅ 실제 인원수를 전달받음
 }
 
 export default function FamilySizeSection({ 
   selectedFamilySize, 
   onSelect,
-  onTotalPeopleChange 
+  onTotalPeopleChange,
+  initialTotalPeople // ✅ 추가
 }: FamilySizeSectionProps) {
   const [inputValue, setInputValue] = useState<string>('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const isUserTypingRef = useRef(false) // ✅ useRef로 입력 중 추적 (리렌더링 방지)
+  const isInitializedRef = useRef(false) // ✅ 초기화 완료 여부 추적
 
-  // ✅ selectedFamilySize에서 숫자 추출 (호환성)
+  // ✅ 초기 마운트 시에만 실행 (한 번만)
   useEffect(() => {
-    if (selectedFamilySize) {
-      // '1-2', '2-3' 등의 범위에서 첫 번째 숫자 추출
+    // 이미 초기화되었거나 사용자가 입력 중이면 실행하지 않음
+    if (isInitializedRef.current || isUserTypingRef.current) {
+      return
+    }
+    
+    console.log('🔄 FamilySizeSection 초기화:', { 
+      initialTotalPeople, 
+      selectedFamilySize
+    });
+    
+    if (initialTotalPeople && initialTotalPeople > 0) {
+      // ✅ totalPeople이 있으면 우선 사용 (가장 정확한 값)
+      setInputValue(initialTotalPeople.toString())
+      console.log('✅ totalPeople 우선 사용:', initialTotalPeople);
+      isInitializedRef.current = true
+    } else if (selectedFamilySize) {
+      // familySizeRange에서 숫자 추출 (fallback)
       const match = selectedFamilySize.match(/^(\d+)/)
       if (match) {
         setInputValue(match[1])
+        console.log('⚠️ familySizeRange에서 추출:', match[1]);
+        isInitializedRef.current = true
       }
     } else {
       setInputValue('')
+      console.log('📝 빈 값으로 초기화');
+      isInitializedRef.current = true
     }
-  }, [selectedFamilySize])
+  }, []) // ✅ 빈 의존성 배열 - 마운트 시 한 번만 실행
+
+  // ✅ initialTotalPeople이 외부에서 변경되었을 때만 업데이트 (사용자 입력 중이 아닐 때)
+  useEffect(() => {
+    // 사용자가 입력 중이거나 이미 초기화되지 않았으면 무시
+    if (isUserTypingRef.current || !isInitializedRef.current) {
+      return
+    }
+    
+    // inputValue가 이미 같은 값이면 업데이트하지 않음
+    if (initialTotalPeople && initialTotalPeople.toString() === inputValue) {
+      return
+    }
+    
+    // 외부에서 totalPeople이 변경되었고, 현재 입력값과 다를 때만 업데이트
+    if (initialTotalPeople && initialTotalPeople > 0) {
+      console.log('🔄 외부에서 totalPeople 변경 감지:', initialTotalPeople);
+      setInputValue(initialTotalPeople.toString())
+    }
+  }, [initialTotalPeople, inputValue])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
+    
+    // ✅ 사용자 입력 중임을 표시 (useRef 사용)
+    isUserTypingRef.current = true
     
     // 숫자만 입력 허용
     if (value === '' || /^\d+$/.test(value)) {
@@ -47,7 +92,8 @@ export default function FamilySizeSection({
         let range: string
         if (numValue === 1) range = '1인'
         else if (numValue === 2) range = '2인'
-        else if (numValue >= 3 && numValue <= 4) range = '3~4인'
+        else if (numValue === 3) range = '3인'  // ✅ 3명은 정확히 '3인'
+        else if (numValue === 4) range = '4인'  // ✅ 4명은 정확히 '4인'
         else if (numValue >= 5) range = '5인 이상'
         else range = `${numValue}인`
         
@@ -60,6 +106,11 @@ export default function FamilySizeSection({
         }
       }
     }
+    
+    // ✅ 입력 후 일정 시간 후 isUserTyping 해제 (초기화 방지)
+    setTimeout(() => {
+      isUserTypingRef.current = false
+    }, 500)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -72,9 +123,9 @@ export default function FamilySizeSection({
         nextElement.focus()
       }
     }
-    // 숫자 입력 시 2자리 도달하면 자동으로 다음 필드로 이동
-    else if (inputValue.length >= 1 && /^\d$/.test(e.key) && inputValue.length + 1 >= 2) {
-      // 입력은 허용하되, 입력 후 포커스 이동
+    // 숫자 입력 시 자동으로 다음 필드로 이동 (선택사항)
+    else if (inputValue.length >= 3 && /^\d$/.test(e.key)) {
+      // 3자리 이상 입력 시 포커스 이동 (선택사항)
       setTimeout(() => {
         const nextElement = document.querySelector('[data-next-focus]') as HTMLElement
         if (nextElement) {
@@ -84,12 +135,28 @@ export default function FamilySizeSection({
     }
   }
 
+  // ✅ "3명 이상" 버튼 핸들러
+  const handleThreeOrMore = () => {
+    setInputValue('3+')
+    
+    // totalPeople은 3으로 설정 (최소값)
+    if (onTotalPeopleChange) {
+      onTotalPeopleChange(3)
+    }
+    
+    // familySizeRange는 '3명 이상'으로 설정
+    onSelect('3명 이상')
+    
+    console.log('✅ 3명 이상 선택:', { totalPeople: 3, range: '3명 이상' })
+  }
+
   // ✅ 올림 버튼 (값 증가)
   const handleIncrement = () => {
     const currentValue = parseInt(inputValue || '0', 10)
-    const newValue = Math.min(currentValue + 1, 20) // 최대 20명
+    const newValue = currentValue + 1 // ✅ 최대값 제한 제거
     const newValueStr = newValue.toString()
     setInputValue(newValueStr)
+    isUserTypingRef.current = true // ✅ 사용자 입력 중 표시
     
     if (onTotalPeopleChange) {
       onTotalPeopleChange(newValue)
@@ -99,11 +166,16 @@ export default function FamilySizeSection({
     let range: string
     if (newValue === 1) range = '1인'
     else if (newValue === 2) range = '2인'
-    else if (newValue >= 3 && newValue <= 4) range = '3~4인'
+    else if (newValue === 3) range = '3인'  // ✅ 3명은 정확히 '3인'
+    else if (newValue === 4) range = '4인'  // ✅ 4명은 정확히 '4인'
     else if (newValue >= 5) range = '5인 이상'
     else range = `${newValue}인`
     
     onSelect(range)
+    
+    setTimeout(() => {
+      isUserTypingRef.current = false
+    }, 500)
   }
 
   // ✅ 내림 버튼 (값 감소)
@@ -112,6 +184,7 @@ export default function FamilySizeSection({
     const newValue = Math.max(currentValue - 1, 1) // 최소 1명
     const newValueStr = newValue.toString()
     setInputValue(newValueStr)
+    isUserTypingRef.current = true // ✅ 사용자 입력 중 표시
     
     if (onTotalPeopleChange) {
       onTotalPeopleChange(newValue)
@@ -121,11 +194,16 @@ export default function FamilySizeSection({
     let range: string
     if (newValue === 1) range = '1인'
     else if (newValue === 2) range = '2인'
-    else if (newValue >= 3 && newValue <= 4) range = '3~4인'
+    else if (newValue === 3) range = '3인'  // ✅ 3명은 정확히 '3인'
+    else if (newValue === 4) range = '4인'  // ✅ 4명은 정확히 '4인'
     else if (newValue >= 5) range = '5인 이상'
     else range = `${newValue}인`
     
     onSelect(range)
+    
+    setTimeout(() => {
+      isUserTypingRef.current = false
+    }, 500)
   }
 
   return (
@@ -170,7 +248,7 @@ export default function FamilySizeSection({
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
-              maxLength={2}
+              maxLength={3}
               value={inputValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
@@ -200,17 +278,8 @@ export default function FamilySizeSection({
           <button
             type="button"
             onClick={handleIncrement}
-            disabled={!!inputValue && !isNaN(parseInt(inputValue, 10)) && parseInt(inputValue, 10) >= 20}
             aria-label="가족 수 증가"
-            className={`
-              w-12 h-12 md:w-14 md:h-14 flex items-center justify-center
-              rounded-xl border-2 transition-all duration-200
-              font-bold text-xl md:text-2xl
-              ${!!inputValue && !isNaN(parseInt(inputValue, 10)) && parseInt(inputValue, 10) >= 20
-                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'border-argen-500 bg-white text-argen-600 hover:bg-argen-50 hover:scale-105 active:scale-95'
-              }
-            `}
+            className="w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-xl border-2 border-argen-500 bg-white text-argen-600 hover:bg-argen-50 hover:scale-105 active:scale-95 transition-all duration-200 font-bold text-xl md:text-2xl"
           >
             +
           </button>

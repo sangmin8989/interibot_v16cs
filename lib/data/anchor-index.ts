@@ -40,6 +40,7 @@ export function findInterpolationAnchors(
 
 export const STANDARD_ANCHORS = {};
 
-export { ANCHOR_APARTMENT_18PY, ANCHOR_APARTMENT_25PY, ANCHOR_APARTMENT_32PY, ANCHOR_APARTMENT_45PY };
-export * from './anchor-types';
+// ✅ 중복 export 제거: 각 anchor 파일에서 이미 export되고 있음
+// export { ANCHOR_APARTMENT_18PY, ANCHOR_APARTMENT_25PY, ANCHOR_APARTMENT_32PY, ANCHOR_APARTMENT_45PY };
+// export * from './anchor-types'; // anchor-types는 직접 import 사용
 export * from './housing-type-adjustments';

@@ -434,7 +434,7 @@ export async function POST(request: NextRequest) {
     // 1) V1/V2 엔진으로 규칙 기반 분석 실행
     const result = USE_V2_ENGINE
       ? buildAnalysisResultV2(payload)
-      : buildAnalysisResult(payload)
+      : await buildAnalysisResult(payload)
 
     console.log('📊 규칙 기반 분석 완료:', {
       engine: USE_V2_ENGINE ? 'V2' : 'V1',

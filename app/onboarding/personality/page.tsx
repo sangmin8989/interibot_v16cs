@@ -3,9 +3,10 @@
 import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check } from 'lucide-react'
-import { modeConfigs, type AnalysisMode, type Question } from '@/lib/data/personalityQuestions'
+import { modeConfigs, type AnalysisMode, type Question, type AnswerState, type QuestionAnswer } from '@/lib/data/personalityQuestions'
 import { usePersonalityStore } from '@/lib/store/personalityStore'
 import { useSpaceInfoStore } from '@/lib/store/spaceInfoStore'  // spaceInfo 추가
+import { decideSingleCriteria, generateCriteriaDeclaration } from '@/lib/analysis/decision-criteria'
 import MBTISelector from '@/components/onboarding/vibe/MBTISelector'
 import BloodTypeSelector from '@/components/onboarding/vibe/BloodTypeSelector'
 import ZodiacInput from '@/components/onboarding/vibe/ZodiacInput'
@@ -23,17 +24,37 @@ function PersonalityContent() {
   const setAnswerToStore = usePersonalityStore((state) => state.setAnswer)
   const resetAnalysis = usePersonalityStore((state) => state.resetAnalysis)
   const setVibeData = usePersonalityStore((state) => state.setVibeData)
+  const setHasDecisionCriteria = usePersonalityStore((state) => state.setHasDecisionCriteria)
+  const setDecisionCriteria = usePersonalityStore((state) => state.setDecisionCriteria)
   const { spaceInfo } = useSpaceInfoStore()  // spaceInfo 가져오기
   
-  // ✅ 로컬 상태로 answers 관리 (즉각적인 UI 반응 보장)
-  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({})
+  // Phase 2: 답변 상태 관리 (answerState + answerValue)
+  const [localAnswers, setLocalAnswers] = useState<Record<string, QuestionAnswer>>({})
   
   // ✅ Zustand 상태가 변경되면 로컬 상태와 동기화
   useEffect(() => {
     if (storedAnswers && storedAnswers.length > 0) {
-      const answersMap: Record<string, string> = {}
+      const answersMap: Record<string, QuestionAnswer> = {}
       storedAnswers.forEach((a) => {
-        answersMap[a.questionId] = a.answer
+        // 기존 형식 호환성: string answer를 QuestionAnswer로 변환
+        const value = a.answer
+        if (value === 'UNKNOWN') {
+          answersMap[a.questionId] = {
+            questionId: a.questionId,
+            answerState: 'UNKNOWN',
+          }
+        } else if (value === 'EXPERT_ASSUMPTION') {
+          answersMap[a.questionId] = {
+            questionId: a.questionId,
+            answerState: 'EXPERT_ASSUMPTION',
+          }
+        } else {
+          answersMap[a.questionId] = {
+            questionId: a.questionId,
+            answerState: 'NORMAL',
+            answerValue: value,
+          }
+        }
       })
       setLocalAnswers(answersMap)
     }
@@ -49,6 +70,7 @@ function PersonalityContent() {
   const [isClient, setIsClient] = useState(false) // 클라이언트 렌더링 확인
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false) // AI 질문 로딩 상태
   const [loadingProgress, setLoadingProgress] = useState(0) // 로딩 진행률 (0-100)
+  const [isSubmitting, setIsSubmitting] = useState(false) // 버튼 제출 상태 (로딩 애니메이션용)
 
   // Vibe 모드 전용 상태
   const [mbti, setMbti] = useState<string | null>(null)
@@ -67,7 +89,9 @@ function PersonalityContent() {
       // 폴백: 기존 고정 질문 사용
       const config = modeConfigs.find(m => m.id === mode)
       if (config && config.questions.length > 0) {
-        setCurrentQuestions(config.questions)
+        // 질문 수 상한 제한 (최대 7개)
+        const limitedQuestions = config.questions.slice(0, 7)
+        setCurrentQuestions(limitedQuestions)
         setCurrentQuestionIndex(0)
         setViewMode('question')
       }
@@ -108,10 +132,12 @@ function PersonalityContent() {
         setLoadingProgress(100)
         await new Promise(resolve => setTimeout(resolve, 200))
         
-        setCurrentQuestions(data.questions)
+        // 질문 수 상한 제한 (최대 7개)
+        const limitedQuestions = data.questions.slice(0, 7)
+        setCurrentQuestions(limitedQuestions)
         setCurrentQuestionIndex(0)
         setViewMode('question')
-        console.log(`✅ AI가 ${data.questions.length}개 질문 선택 완료 (모드: ${mode})`)
+        console.log(`✅ AI가 ${limitedQuestions.length}개 질문 선택 완료 (모드: ${mode}, 원본: ${data.questions.length}개)`)
         console.log('💡 선택 이유:', data.reason)
       } else {
         throw new Error('AI 질문 생성 실패')
@@ -125,7 +151,9 @@ function PersonalityContent() {
       
       const config = modeConfigs.find(m => m.id === mode)
       if (config && config.questions.length > 0) {
-        setCurrentQuestions(config.questions)
+        // 질문 수 상한 제한 (최대 7개)
+        const limitedQuestions = config.questions.slice(0, 7)
+        setCurrentQuestions(limitedQuestions)
         setCurrentQuestionIndex(0)
         setViewMode('question')
       }
@@ -177,6 +205,12 @@ function PersonalityContent() {
   const handleStartAnalysis = () => {
     if (!selectedMode) return
 
+    // ✅ KPI 계측: 결정 시작 이벤트
+    if (typeof window !== 'undefined') {
+      const { trackDecisionStart } = require('@/lib/utils/kpi-tracker')
+      trackDecisionStart()
+    }
+
     // 질문 인덱스 초기화
     setCurrentQuestionIndex(0)
     
@@ -198,6 +232,15 @@ function PersonalityContent() {
 
   // Vibe 모드 - MBTI/혈액형/별자리 입력 완료 → 7개 질문으로 이동
   const handleVibeComplete = () => {
+    // 중복 제출 방지
+    if (isSubmitting) {
+      console.log('⏳ 이미 제출 중입니다...')
+      return
+    }
+    
+    // 로딩 상태 시작
+    setIsSubmitting(true)
+    
     // Vibe 데이터 저장
     setVibeData({
       mbti: mbti || undefined,
@@ -207,6 +250,11 @@ function PersonalityContent() {
     
     // ✅ AI 질문 로드 (NEW!)
     loadAIQuestions('vibe')
+    
+    // 제출 완료 후 상태 초기화 (페이지 이동 전까지)
+    setTimeout(() => {
+      setIsSubmitting(false)
+    }, 1000)
   }
 
   const currentQuestion = currentQuestions[currentQuestionIndex]
@@ -224,21 +272,49 @@ function PersonalityContent() {
     })
   }, [viewMode, selectedMode, currentQuestionIndex, currentQuestions.length, currentQuestion, answers, spaceInfo])
 
-  // 답변 선택 시 value를 저장 (text 대신)
-  // ✅ 로컬 상태 + Zustand 동시 업데이트 (즉각적 UI 반응)
+  // Phase 2: 답변 선택 시 answerState와 answerValue를 저장
   const handleAnswerSelect = useCallback((questionId: string, value: string) => {
     console.log('✅ 답변 선택:', questionId, '=', value)
+    
+    // Phase 2: value에 따라 answerState 결정
+    let answerState: AnswerState = 'NORMAL'
+    let answerValue: string | undefined = value
+    
+    if (value === 'UNKNOWN') {
+      answerState = 'UNKNOWN'
+      answerValue = undefined
+    } else if (value === 'EXPERT_ASSUMPTION') {
+      answerState = 'EXPERT_ASSUMPTION'
+      answerValue = undefined
+    }
+    
+    const questionAnswer: QuestionAnswer = {
+      questionId,
+      answerState,
+      answerValue,
+    }
+    
     // 로컬 상태 즉시 업데이트 (UI 반응)
-    setLocalAnswers(prev => ({ ...prev, [questionId]: value }))
-    // Zustand store에도 저장 (영속성)
+    setLocalAnswers(prev => ({ ...prev, [questionId]: questionAnswer }))
+    // Zustand store에도 저장 (영속성 - 호환성을 위해 value 저장)
     setAnswerToStore(questionId, value)
   }, [setAnswerToStore])
 
   const handleNext = async () => {
+    // Phase 2: UNKNOWN/EXPERT_ASSUMPTION 선택 시 추가 질문 차단 확인
+    // (질문 흐름이 끝나면 자동으로 차단되지만, 명시적으로 확인)
+    const currentAnswer = currentQuestion ? answers[currentQuestion.id] : null
+    if (currentAnswer && (currentAnswer.answerState === 'UNKNOWN' || currentAnswer.answerState === 'EXPERT_ASSUMPTION')) {
+      console.log('✅ 답변 곤란 선택됨 - 추가 질문 생성 안 함:', currentAnswer.answerState)
+    }
+    
     if (currentQuestionIndex < currentQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1)
     } else {
       // 마지막 질문 완료 - AI 분석 실행
+      // ✅ 로딩 상태 시작
+      setIsSubmitting(true)
+      
       try {
         // spaceInfo를 API가 기대하는 형식으로 변환
         const spaceInfoPayload = spaceInfo ? {
@@ -254,9 +330,16 @@ function PersonalityContent() {
           totalPeople: spaceInfo.totalPeople,
         } : null
 
+        // Phase 2: 서버 전송 시 answerState 포함
+        const answersPayload = Object.values(answers).map((answer) => ({
+          questionId: answer.questionId,
+          answerState: answer.answerState,
+          answerValue: answer.answerValue,  // NORMAL일 때만 존재
+        }))
+
         console.log('📤 API 전송 데이터:', {
           mode: selectedMode,
-          answers,
+          answers: answersPayload,
           spaceInfo: spaceInfoPayload,
           vibeInput: selectedMode === 'vibe' ? { mbti, bloodType, birthdate } : null
         })
@@ -266,8 +349,8 @@ function PersonalityContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mode: selectedMode,
-            answers: answers,  // 이제 문자열 ID를 키로 사용
-            spaceInfo: spaceInfoPayload,  // spaceInfo 추가!
+            answers: answersPayload,  // Phase 2: QuestionAnswer[] 형식
+            spaceInfo: spaceInfoPayload,
             vibeInput: selectedMode === 'vibe' ? {
               mbti: mbti,
               bloodType: bloodType,
@@ -286,11 +369,26 @@ function PersonalityContent() {
         }
       } catch (error) {
         console.error('❌ AI 분석 오류:', error)
+      } finally {
+        // ✅ 로딩 상태 종료
+        setIsSubmitting(false)
       }
       
-      // ✅ 새 플로우: 세부옵션 → 성향분석 → AI 분석 → 견적
-      router.push('/onboarding/ai-recommendation')
+      // 기준 생성 완료 표시
+      setHasDecisionCriteria(true)
+      
+      // ✅ 새 플로우: 성향분석 완료 → 공사 범위 선택
+      router.push('/onboarding/scope')
     }
+  }
+  
+  // 건너뛰기 핸들러
+  const handleSkip = () => {
+    // 기준 생성 안 함 표시 (기준 및 선언 문장 null로 설정)
+    setDecisionCriteria(null, null)
+    
+    // 공사 범위 선택으로 이동
+    router.push('/onboarding/scope')
   }
 
   const handlePrevious = () => {
@@ -319,6 +417,7 @@ function PersonalityContent() {
     // resetAnalysis는 호출하지 않음
   }
 
+  // Phase 2: 답변이 있는지 확인 (answerState가 있으면 답변 완료)
   const isAnswered = currentQuestion ? !!answers[currentQuestion.id] : false
   const progress = currentQuestions.length > 0 
     ? ((currentQuestionIndex + 1) / currentQuestions.length) * 100 
@@ -331,7 +430,7 @@ function PersonalityContent() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-argen-50 via-white to-roseSoft/30">
         {/* 새 플로우: 성향 분석은 3단계 */}
-        <StepIndicator currentStep={3} steps={DEFAULT_STEPS} />
+        <StepIndicator currentStep={2} steps={DEFAULT_STEPS} />
         
         <div className="py-12 px-4">
           <div className="max-w-3xl mx-auto">
@@ -369,10 +468,30 @@ function PersonalityContent() {
               </button>
               <button
                 onClick={handleVibeComplete}
-                className="flex-1 py-4 bg-argen-500 text-white font-semibold rounded-xl
-                           hover:bg-argen-600 transition-colors"
+                disabled={isSubmitting}
+                aria-label={isSubmitting ? '처리 중입니다...' : '나답게 질문 시작'}
+                className={`flex-1 py-4 font-semibold rounded-xl transition-all duration-200 relative min-h-[44px] flex items-center justify-center ${
+                  isSubmitting
+                    ? 'bg-gray-400 text-white cursor-not-allowed opacity-70'
+                    : 'bg-argen-500 text-white hover:bg-argen-600 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transform hover:brightness-110'
+                }`}
+                style={!isSubmitting ? { backgroundColor: '#CC807A' } : {}}
               >
-                나답게 질문 시작 →
+                <div className="flex flex-col items-center">
+                  {isSubmitting ? (
+                    <>
+                      <span className="text-sm md:text-base flex items-center gap-2">
+                        <span className="animate-spin">⏳</span>
+                        처리 중...
+                      </span>
+                      <span className="text-xs mt-0.5 md:mt-1 opacity-90">잠시만 기다려주세요</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm md:text-base">나답게 질문 시작 →</span>
+                    </>
+                  )}
+                </div>
               </button>
             </div>
           </div>
@@ -385,7 +504,7 @@ function PersonalityContent() {
   if (isLoadingQuestions) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-argen-50 via-white to-argen-50">
-        <StepIndicator currentStep={3} steps={DEFAULT_STEPS} />
+        <StepIndicator currentStep={2} steps={DEFAULT_STEPS} />
         <div className="py-12 px-4">
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-8">
@@ -445,6 +564,16 @@ function PersonalityContent() {
             </div>
           </div>
 
+          {/* 건너뛰기 버튼 (상단) */}
+          <div className="mb-4 text-right">
+            <button
+              onClick={handleSkip}
+              className="text-sm text-gray-500 hover:text-gray-700 underline"
+            >
+              건너뛰기 →
+            </button>
+          </div>
+
           {/* 질문 */}
           {currentQuestion ? (
             <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
@@ -453,38 +582,105 @@ function PersonalityContent() {
               </h2>
 
               <div className="space-y-3">
-                {currentQuestion.options.map((option, index) => {
-                  // value를 기준으로 선택 여부 확인
-                  const isSelected = answers[currentQuestion.id] === option.value
-                  
-                  return (
-                    <button
-                      key={option.id || index}
-                      onClick={() => handleAnswerSelect(currentQuestion.id, option.value)}
-                      className={`
-                        w-full p-5 rounded-xl text-left transition-all duration-200
-                        ${isSelected
-                          ? 'bg-argen-500 text-white shadow-lg scale-102'
-                          : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                        }
-                      `}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* 아이콘 표시 */}
-                        {option.icon && (
-                          <span className="text-2xl">{option.icon}</span>
-                        )}
-                        <div className={`
-                          w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
-                          ${isSelected ? 'border-white' : 'border-gray-300'}
-                        `}>
-                          {isSelected && <Check className="w-4 h-4" />}
+                {/* Phase 2: 일반 선택지 */}
+                {currentQuestion.options
+                  .filter(opt => opt.value !== 'UNKNOWN' && opt.value !== 'EXPERT_ASSUMPTION')
+                  .map((option, index) => {
+                    // Phase 2: answerState와 answerValue를 기준으로 선택 여부 확인
+                    const answer = answers[currentQuestion.id]
+                    const isSelected = answer?.answerState === 'NORMAL' && answer?.answerValue === option.value
+                    
+                    return (
+                      <button
+                        key={option.id || index}
+                        onClick={() => handleAnswerSelect(currentQuestion.id, option.value)}
+                        className={`
+                          w-full p-5 rounded-xl text-left transition-all duration-200
+                          ${isSelected
+                            ? 'bg-argen-500 text-white shadow-lg scale-102'
+                            : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                          }
+                        `}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* 아이콘 표시 */}
+                          {option.icon && (
+                            <span className="text-2xl">{option.icon}</span>
+                          )}
+                          <div className={`
+                            w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
+                            ${isSelected ? 'border-white' : 'border-gray-300'}
+                          `}>
+                            {isSelected && <Check className="w-4 h-4" />}
+                          </div>
+                          <span className="flex-1 font-medium">{option.text}</span>
                         </div>
-                        <span className="flex-1 font-medium">{option.text}</span>
-                      </div>
-                    </button>
-                  )
-                })}
+                      </button>
+                    )
+                  })}
+                
+                {/* Phase 2: 답변 곤란 옵션 강제 추가 (항상 표시) */}
+                <div className="pt-2 border-t border-gray-200 mt-3">
+                  <div className="space-y-2">
+                    {/* "잘 모르겠습니다" 옵션 */}
+                    {(() => {
+                      const answer = answers[currentQuestion.id]
+                      const isSelected = answer?.answerState === 'UNKNOWN'
+                      return (
+                        <button
+                          onClick={() => handleAnswerSelect(currentQuestion.id, 'UNKNOWN')}
+                          className={`
+                            w-full p-4 rounded-lg text-left transition-all duration-200
+                            ${isSelected
+                              ? 'bg-gray-200 text-gray-700 border-2 border-gray-400'
+                              : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200'
+                            }
+                          `}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">❓</span>
+                            <div className={`
+                              w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0
+                              ${isSelected ? 'border-gray-600 bg-gray-300' : 'border-gray-300'}
+                            `}>
+                              {isSelected && <Check className="w-3 h-3 text-gray-700" />}
+                            </div>
+                            <span className="flex-1 text-sm font-medium">잘 모르겠습니다</span>
+                          </div>
+                        </button>
+                      )
+                    })()}
+                    
+                    {/* "전문가 판단에 맡길게요" 옵션 */}
+                    {(() => {
+                      const answer = answers[currentQuestion.id]
+                      const isSelected = answer?.answerState === 'EXPERT_ASSUMPTION'
+                      return (
+                        <button
+                          onClick={() => handleAnswerSelect(currentQuestion.id, 'EXPERT_ASSUMPTION')}
+                          className={`
+                            w-full p-4 rounded-lg text-left transition-all duration-200
+                            ${isSelected
+                              ? 'bg-gray-200 text-gray-700 border-2 border-gray-400'
+                              : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200'
+                            }
+                          `}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">👨‍🔧</span>
+                            <div className={`
+                              w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0
+                              ${isSelected ? 'border-gray-600 bg-gray-300' : 'border-gray-300'}
+                            `}>
+                              {isSelected && <Check className="w-3 h-3 text-gray-700" />}
+                            </div>
+                            <span className="flex-1 text-sm font-medium">전문가 판단에 맡길게요</span>
+                          </div>
+                        </button>
+                      )
+                    })()}
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
@@ -512,12 +708,21 @@ function PersonalityContent() {
             </button>
             <button
               onClick={handleNext}
-              disabled={!isAnswered}
-              className="flex-1 py-4 bg-argen-500 text-white font-semibold rounded-xl
-                         hover:bg-argen-600 disabled:bg-gray-300 disabled:cursor-not-allowed
-                         transition-colors"
+              disabled={!isAnswered || isSubmitting}
+              className={`flex-1 py-4 font-semibold rounded-xl transition-all duration-200 relative min-h-[44px] flex items-center justify-center ${
+                isSubmitting || !isAnswered
+                  ? 'bg-gray-400 text-white cursor-not-allowed opacity-70'
+                  : 'bg-argen-500 text-white hover:bg-argen-600'
+              }`}
             >
-              {currentQuestionIndex === currentQuestions.length - 1 ? '완료 →' : '다음 →'}
+              {isSubmitting ? (
+                <div className="flex items-center gap-2">
+                  <span className="animate-spin">⏳</span>
+                  <span>처리 중...</span>
+                </div>
+              ) : (
+                <span>{currentQuestionIndex === currentQuestions.length - 1 ? '완료 →' : '다음 →'}</span>
+              )}
             </button>
           </div>
         </div>

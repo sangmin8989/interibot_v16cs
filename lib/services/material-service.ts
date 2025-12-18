@@ -7,8 +7,8 @@
 
 import { supabase } from '@/lib/db/supabase'
 import type { Grade, SizeRange } from '@/lib/data/pricing-v3/types'
+import { TILE_MATERIAL_PRICES } from '@/lib/data/pricing-v3/tile-constants'
 import { 
-  TILE_MATERIAL_PRICES, 
   TILE_AREA_BY_LOCATION,
   type TileLocation 
 } from '@/lib/data/pricing-v3/tile'

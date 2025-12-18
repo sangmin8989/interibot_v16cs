@@ -22,10 +22,9 @@ export function resetAllStores() {
   clearAnalysis()
   clearVibeData()
 
-  // 3. Process Store 초기화
-  const { clearAllProcesses, clearAllTierSelections } = useProcessStore.getState()
+  // 3. Process Store 초기화 (헌법 적용: tierSelections 제거)
+  const { clearAllProcesses } = useProcessStore.getState()
   clearAllProcesses()
-  clearAllTierSelections()
 
   // 4. Scope Store 초기화 (선택된 공간만 초기화, 공간 목록은 유지)
   const { clearSelectedSpaces } = useScopeStore.getState()
@@ -57,12 +56,68 @@ export function clearAllLocalStorage() {
 }
 
 /**
- * 모든 Store와 localStorage를 완전히 초기화합니다
+ * sessionStorage에서 모든 관련 데이터를 제거합니다
+ */
+export function clearAllSessionStorage() {
+  if (typeof window === 'undefined') return
+
+  // 모든 관련 sessionStorage 키 제거
+  const sessionKeys = [
+    'selectedAreas',
+    'spaceInfo',
+    'selectedProcesses',
+    'kitchenOptions',
+    'bathroomOptions',
+    'woodworkOptions',
+    'areaDetailsAnswers',
+    'selectedFrameworks',
+    'vibeInput',
+  ]
+
+  sessionKeys.forEach(key => {
+    sessionStorage.removeItem(key)
+  })
+
+  // analysis_${analysisId} 패턴의 모든 키 제거
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i)
+    if (key && key.startsWith('analysis_')) {
+      sessionStorage.removeItem(key)
+    }
+  }
+
+  console.log('✅ sessionStorage 초기화 완료')
+}
+
+/**
+ * 모든 Store, localStorage, sessionStorage를 완전히 초기화합니다
  * 새로 시작할 때 이 함수를 호출하세요
  */
 export function resetEverything() {
   resetAllStores()
   clearAllLocalStorage()
+  clearAllSessionStorage()
   console.log('🔄 모든 데이터 초기화 완료 - 새로 시작할 준비가 되었습니다!')
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

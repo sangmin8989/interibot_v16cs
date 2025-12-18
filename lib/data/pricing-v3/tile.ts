@@ -15,6 +15,8 @@ import {
   ARGEN_RECOMMENDED 
 } from './types';
 import { TILE_DAYS } from './labor';
+import { TILE_MATERIAL_PRICES, TILE_LABOR_PRICE_PER_TEAM } from './tile-constants';
+// ✅ materialService는 lazy import로만 사용 (순환 참조 방지)
 
 // ============================================================
 // 1. 타일 브랜드
@@ -45,19 +47,12 @@ export const TILE_BRANDS: GradeBrands = {
 };
 
 // ============================================================
-// 2. 타일 단가 (m²당)
+// 2. 타일 단가 (m²당) - tile-constants.ts로 이동
 // ============================================================
 
-/** 등급별 m²당 자재비 */
-export const TILE_MATERIAL_PRICES: Record<Grade, number> = {
-  BASIC: 20000,      // 20,000원/m²
-  STANDARD: 35000,   // 35,000원/m² (아르젠 표준)
-  ARGEN: 45000,      // 45,000원/m²
-  PREMIUM: 75000     // 75,000원/m² (수입)
-};
-
-/** 노무비 (1조당) */
-export const TILE_LABOR_PRICE_PER_TEAM = 650000;  // 650,000원/조
+// ✅ TILE_MATERIAL_PRICES와 TILE_LABOR_PRICE_PER_TEAM은
+//    tile-constants.ts로 분리하여 순환 참조 방지
+//    재export는 index.ts에서 처리
 
 // ============================================================
 // 3. 타일 시공 위치
@@ -130,18 +125,41 @@ export interface TileEstimate {
   argenConcept: typeof ARGEN_RECOMMENDED;
 }
 
-/** 타일 견적 계산 */
-export function calculateTileEstimate(
+/** 타일 견적 계산 (비동기 - MaterialService 사용) */
+export async function calculateTileEstimate(
   grade: Grade,
   sizeRange: SizeRange,
-  py: number
-): TileEstimate {
-  const pricePerM2 = TILE_MATERIAL_PRICES[grade];
+  py: number,
+  useDB?: boolean
+): Promise<TileEstimate> {
+  // ✅ Lazy import로 순환 참조 방지
+  const { materialService } = await import('@/lib/services/material-service')
   
-  // 각 위치별 면적
-  const bathroomArea = TILE_AREA_BY_LOCATION.BATHROOM[sizeRange];
-  const kitchenArea = TILE_AREA_BY_LOCATION.KITCHEN[sizeRange];
-  const entranceArea = TILE_AREA_BY_LOCATION.ENTRANCE[sizeRange];
+  // ✅ MaterialService를 통해 단가 조회 (DB 또는 파일)
+  const pricePerM2 = await materialService.getTilePrice({ 
+    grade, 
+    useDB: useDB ?? process.env.USE_DB_TILE === 'true' 
+  });
+  
+  // ✅ MaterialService를 통해 면적 조회 (DB 또는 파일)
+  const [bathroomArea, kitchenArea, entranceArea] = await Promise.all([
+    materialService.getTileArea({ 
+      location: 'BATHROOM', 
+      sizeRange, 
+      useDB: useDB ?? process.env.USE_DB_TILE === 'true' 
+    }),
+    materialService.getTileArea({ 
+      location: 'KITCHEN', 
+      sizeRange, 
+      useDB: useDB ?? process.env.USE_DB_TILE === 'true' 
+    }),
+    materialService.getTileArea({ 
+      location: 'ENTRANCE', 
+      sizeRange, 
+      useDB: useDB ?? process.env.USE_DB_TILE === 'true' 
+    })
+  ]);
+  
   const totalArea = bathroomArea + kitchenArea + entranceArea;
   
   // 자재비
@@ -150,8 +168,11 @@ export function calculateTileEstimate(
   const entranceMaterialCost = entranceArea * pricePerM2;
   const totalMaterialCost = bathroomMaterialCost + kitchenMaterialCost + entranceMaterialCost;
   
-  // 노무비 (타일 일수 × 65만원)
-  const tileDays = TILE_DAYS[sizeRange];
+  // ✅ MaterialService를 통해 시공일수 조회 (DB 또는 파일)
+  const tileDays = await materialService.getTileDays({ 
+    sizeRange, 
+    useDB: useDB ?? process.env.USE_DB_TILE === 'true' 
+  });
   const totalLaborCost = Math.round(tileDays * TILE_LABOR_PRICE_PER_TEAM);
   
   // 위치별 노무비 배분 (욕실 80%, 주방 15%, 현관 5%)

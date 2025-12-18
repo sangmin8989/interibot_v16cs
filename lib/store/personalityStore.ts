@@ -25,6 +25,9 @@ export interface VibeData {
 interface PersonalityStore {
   analysis: PersonalityAnalysis | null
   vibeData: VibeData | null
+  hasDecisionCriteria: boolean  // 기준 생성 여부
+  decisionCriteria: string | null  // 단일 기준 (ENUM/코드값)
+  decisionCriteriaDeclaration: string | null  // 고객 노출 1~2줄
   setAnalysis: (analysis: PersonalityAnalysis) => void
   updateAnswer: (questionId: string, answer: PersonalityAnswer) => void
   clearAnalysis: () => void
@@ -35,6 +38,8 @@ interface PersonalityStore {
   resetAnalysis: () => void
   setVibeData: (data: VibeData) => void
   clearVibeData: () => void
+  setHasDecisionCriteria: (hasCriteria: boolean) => void  // 기준 생성 여부 설정
+  setDecisionCriteria: (criteria: string | null, declaration: string | null) => void  // 기준 및 선언 문장 설정
 }
 
 export const usePersonalityStore = create<PersonalityStore>()(
@@ -42,6 +47,9 @@ export const usePersonalityStore = create<PersonalityStore>()(
     (set, get) => ({
       analysis: null,
       vibeData: null,
+      hasDecisionCriteria: false,  // 기본값: false (기준 없음)
+      decisionCriteria: null,  // 기본값: null (기준 없음)
+      decisionCriteriaDeclaration: null,  // 기본값: null (선언 문장 없음)
 
       setAnalysis: (analysis) => {
         set({ analysis })
@@ -137,6 +145,18 @@ export const usePersonalityStore = create<PersonalityStore>()(
 
       clearVibeData: () => {
         set({ vibeData: null })
+      },
+      
+      setHasDecisionCriteria: (hasCriteria: boolean) => {
+        set({ hasDecisionCriteria: hasCriteria })
+      },
+      
+      setDecisionCriteria: (criteria: string | null, declaration: string | null) => {
+        set({ 
+          decisionCriteria: criteria,
+          decisionCriteriaDeclaration: declaration,
+          hasDecisionCriteria: criteria !== null
+        })
       },
     }),
     {

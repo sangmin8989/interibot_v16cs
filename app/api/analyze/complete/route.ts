@@ -1,14 +1,14 @@
 /**
  * 인테리봇 종합 AI 분석 API
+ * V3 엔진 사용 (InterventionEngine 포함)
  * 고객의 모든 정보를 종합해서 맞춤 분석 결과 제공
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { V3Engine } from '@/lib/analysis/engine-v3'
+import { V3EngineInput, V3AnalysisResult, BudgetRange, RecommendedProcess, Risk } from '@/lib/analysis/engine-v3/types'
+import { SpaceInfo, VibeInput } from '@/lib/analysis/types'
+import { aggregateChoiceVariables } from '@/lib/analysis/utils/choice-variables'
 
 // 요청 타입 정의
 interface CompleteAnalysisRequest {
@@ -27,6 +27,7 @@ interface CompleteAnalysisRequest {
     livingPurpose?: '실거주' | '매도준비' | '임대' | '입력안함' // 거주 목적
     livingYears?: number // 예상 거주 기간
     totalPeople?: number // 가족 인원수
+    additionalNotes?: string // ✅ 추가 정보 (자유 입력)
     specialConditions?: {
       hasPets?: boolean
       petTypes?: string[]
@@ -73,184 +74,66 @@ export async function POST(request: NextRequest) {
   try {
     const body: CompleteAnalysisRequest = await request.json()
     
-    console.log('📊 인테리봇 종합 분석 시작:', {
+    console.log('📊 인테리봇 종합 분석 시작 (V3 엔진):', {
       집정보: body.spaceInfo,
       선택공간: body.selectedSpaces,
       선택공정: Object.keys(body.selectedProcesses || {}),
       세부옵션: Object.keys(body.detailOptions || {}),
+      성향분석: body.personality ? '있음' : '없음',
     })
 
     let analysisResult
 
-    // OpenAI API 키가 있으면 AI 분석 시도
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        // 프롬프트 생성
-        const analysisPrompt = buildAnalysisPrompt(body)
-        
-        // OpenAI API 호출 - 강화된 전문가 수준 프롬프트
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',  // gpt-4o-mini에서 변경 (API 호환성)
-          messages: [
-            {
-              role: 'system',
-              content: `당신은 "인테리봇"입니다. 15년 경력의 프리미엄 인테리어 컨설턴트입니다.
+    try {
+      // ✅ Integration Step: 질문 답변으로 choiceVariables 계산 (한 번만)
+      const answers = body.personality?.answers || {}
+      const choiceVariables = Object.keys(answers).length > 0 
+        ? aggregateChoiceVariables(answers)
+        : undefined
 
-## 🎯 핵심 미션
-고객이 분석 결과를 보고 **"어떻게 나를 이렇게 잘 알지?!"** 라고 감탄하게 만드세요.
-평범한 "깔끔한 인테리어 추천합니다" 같은 분석은 실패입니다.
+      console.log('📊 선택권 변수 계산:', choiceVariables ? {
+        optionCount: choiceVariables.optionCount,
+        lockStrength: choiceVariables.lockStrength,
+        defaultPlan: choiceVariables.defaultPlan
+      } : '답변 없음')
 
-## 📊 성향 질문 심층 해석 가이드 (매우 중요!)
-
-### [퇴근 후 원하는 첫 장면] 해석
-- hotel_hallway → "외부의 혼란을 집 안에 들이고 싶지 않은, 경계가 확실한 분"
-- warm_kitchen → "가족과 소통하며 하루를 마무리하고 싶은, 관계 중심적인 분"
-- cozy_living → "즉각적인 휴식을 원하는, 바쁜 일상에 지친 분"
-- family_space → "아이/반려동물과의 교감이 에너지원인 분"
-- aesthetic_decor → "시각적 만족이 심리적 안정감을 주는 분"
-
-### [사진 찍고 싶은 공간] 해석
-- living_room → "손님 초대를 즐기거나 SNS로 일상 공유하시는 분"
-- kitchen → "요리가 취미이거나 식문화를 중요시하는 분"
-- bedroom → "완벽한 휴식 공간에 투자하고 싶은 분"
-- bathroom → "디테일한 마감과 청결에 민감한 분"
-- workspace → "생산성과 자기계발을 중요시하는 분"
-
-### [절대 타협 안 할 것] 해석 → 이것이 최우선 투자 영역!
-- natural_light → 창문 방향 고려, 밝은 톤 마감재, 커튼 신중 선택
-- lighting → 조명 플랜 중요, 3단계 조도 조절, 간접조명 필수
-- storage → 빌트인 가구 투자, 숨은 수납 극대화
-- finish_quality → 마감재 등급 업, 줄눈/몰딩 디테일
-- flow → 동선 설계 우선, 문 방향/가구 배치 중요
-
-### [원하는 집 분위기] → 스타일 결정의 핵심!
-- healing → 내추럴/우드톤/식물/간접조명
-- focus → 미니멀/화이트/정리된 수납/집중 조명
-- family → 따뜻한 톤/내구성/안전/오픈 구조
-- leisure → 호텔 감성/고급 마감/무드 조명
-- success → 모던 럭셔리/세련된 포인트/품격 있는 마감
-
-## 🧬 MBTI + 혈액형 조합 분석 (vibe 모드)
-
-### MBTI 4글자 각각의 의미
-- I(내향): 개인 공간 중시, 조용한 환경, 프라이버시
-- E(외향): 오픈 구조, 손님 초대 공간, 활기찬 분위기
-- N(직관): 분위기/감성 중시, 독특한 디자인, 영감
-- S(감각): 실용성/기능 중시, 검증된 디자인, 내구성
-- T(사고): 효율/동선 중시, 합리적 선택, ROI 고려
-- F(감정): 편안함/감성 중시, 가족 배려, 따뜻함
-- J(판단): 체계적 수납, 정돈된 공간, 계획적
-- P(인식): 유연한 공간, 변화 가능성, 다용도
-
-### 혈액형 특성
-- A형: 꼼꼼함 → 마감 디테일 중요, 줄눈/코너 처리 민감
-- B형: 창의적 → 독특한 포인트, 남들과 다른 디자인 선호
-- O형: 실용적 → 기능성 우선, 가성비 중시, 관리 편의
-- AB형: 개성적 → 자기만의 스타일, 트렌드보다 취향
-
-### 조합 예시 (반드시 이런 식으로 해석!)
-- ISFJ + A형 → "꼼꼼하게 가족을 챙기시는 분! 청소 용이성 + 안전성 + 마감 품질 모두 중요"
-- ENTP + O형 → "효율적이면서 트렌디한 것을 좋아하시는 분! 가성비 좋은 모던 스타일"
-- INFP + B형 → "자신만의 감성적인 힐링 공간을 꿈꾸시는 분! 내추럴+개성 포인트"
-
-## 🏠 집 정보 + 성향 결합 분석
-
-### 가족 구성별 숨은 니즈
-- 아이 있음 → 안전 모서리, 세척 용이 벽지, 놀이 공간
-- 반려동물 → 스크래치 방지 바닥, 털 안 끼는 소재, 냄새 방지
-- 고령자 → 미끄럼 방지, 손잡이, 높이 조절
-- 재택근무 → 집중 공간 분리, 방음, 조명 배치
-- 맞벌이 → 청소 용이성, 수납 시스템, 자동화
-
-### 예산별 전략
-- 실거주 + 10년 이상 → 내구성 중심 투자
-- 매도준비 → 주방/욕실 집중, 트렌디한 마감
-- 임대 → 가성비 + 범용적 디자인
-
-## ✍️ 톤앤매너
-
-### 문장 스타일 (중요!)
-❌ "~합니다", "~입니다" 딱딱하게 반복 금지
-❌ "추천드립니다", "권장드립니다" 형식적 표현 금지
-✅ 친구 같은 전문가 느낌으로 대화체 사용
-✅ 고객의 선택을 해석하며 공감 표현
-
-### 예시
-❌ "주방은 ㄱ자형을 추천합니다. 동선이 효율적입니다."
-✅ "아, 주방에서 요리하면서 거실 TV 보시는 거 좋아하실 것 같은데요! ㄱ자형이면 싱크대에서 고개만 돌리면 거실이 바로 보여요."
-
-❌ "편안한 분위기를 원하시는군요."
-✅ "힐링 분위기를 선택하셨네요. 퇴근하고 현관문 열자마자 '아, 집이다' 하고 어깨 힘이 풀리는 그런 느낌 원하시는 거죠? 완전 공감해요!"
-
-## 🚫 절대 금지
-1. 누구에게나 적용되는 평범한 분석
-2. 성향 데이터 무시하고 일반론만 말하기
-3. 고객이 선택한 답변 언급 안 하기
-4. MBTI/혈액형 있는데 활용 안 하기
-
-## 응답 JSON 형식:
-{
-  "summary": "고객의 성향을 정확히 파악했다는 것을 보여주는 3-4문장 요약. 반드시 고객이 선택한 답변의 의미를 해석하여 포함!",
-  "customerProfile": {
-    "lifestyle": "고객의 라이프스타일 심층 분석. 성향 답변을 바탕으로 '아, 이 분은 이런 분이시구나' 느낌이 드는 설명",
-    "priorities": ["성향 분석에서 도출한 최우선 포인트 3개"],
-    "style": "MBTI/답변 기반 추천 스타일명"
-  },
-  "homeValueScore": {
-    "score": 1-5,
-    "reason": "구체적 이유",
-    "investmentValue": "투자 가치 평가"
-  },
-  "lifestyleScores": {
-    "storage": 0-100,
-    "cleaning": 0-100,
-    "flow": 0-100,
-    "comment": "고객 맞춤 코멘트"
-  },
-  "spaceAnalysis": [
-    {
-      "space": "공간명",
-      "recommendation": "이 고객의 성향에 맞는 구체적 추천",
-      "tips": ["실용적 팁 2개"],
-      "estimatedImpact": "기대 효과"
-    }
-  ],
-  "budgetAdvice": {
-    "grade": "basic/standard/argen/premium",
-    "reason": "고객 성향 기반 등급 추천 이유",
-    "savingTips": ["절약 팁 3개"]
-  },
-  "warnings": ["주의사항 2-3개"],
-  "nextSteps": ["다음 단계 3개"]
-}`
-            },
-            {
-              role: 'user',
-              content: analysisPrompt
-            }
-          ],
-          temperature: 0.8,
-          max_tokens: 3000,
-        })
-
-        const responseText = completion.choices[0]?.message?.content || ''
-        
-        // JSON 파싱
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          analysisResult = JSON.parse(jsonMatch[0])
-          console.log('✅ AI 분석 완료 (OpenAI)')
-        } else {
-          throw new Error('JSON 형식을 찾을 수 없습니다')
-        }
-      } catch (aiError: any) {
-        console.warn('⚠️ OpenAI 분석 실패, 기본 분석 사용:', aiError.message)
-        // AI 실패 시 기본 분석 사용
-        analysisResult = createDefaultAnalysis(body)
+      // V3 엔진 입력 변환
+      const v3Input: V3EngineInput = {
+        answers,
+        spaceInfo: convertSpaceInfo(body.spaceInfo),
+        selectedSpaces: body.selectedSpaces || [],
+        selectedProcesses: body.selectedProcesses ? Object.keys(body.selectedProcesses) : [],
+        budget: convertBudget(body.spaceInfo?.budget),
+        vibeInput: body.personality?.vibeData ? {
+          mbti: body.personality.vibeData.mbti,
+          bloodType: body.personality.vibeData.bloodType,
+          zodiac: body.personality.vibeData.birthdate ? undefined : undefined
+        } : undefined,
+        // ✅ Integration Step: choiceVariables 전달
+        choiceVariables
       }
-    } else {
-      // OpenAI API 키가 없으면 기본 분석 사용
-      console.log('ℹ️ OpenAI API 키 없음, 기본 분석 사용')
+
+      console.log('🚀 V3 엔진 실행 시작')
+      
+      // V3 엔진 실행
+      const v3Engine = new V3Engine()
+      const v3Result = await v3Engine.analyze(v3Input)
+
+      console.log('✅ V3 엔진 완료:', {
+        공정개수: v3Result.processResult.recommendedProcesses.length,
+        리스크개수: v3Result.riskResult.risks.length,
+        시나리오개수: v3Result.scenarioResult.scenarios.length,
+        실행시간: v3Result.executionTime?.total || 0
+      })
+
+      // V3 결과를 기존 응답 형식으로 변환
+      analysisResult = convertV3ResultToLegacyFormat(v3Result, body)
+
+      console.log('✅ 분석 결과 변환 완료')
+    } catch (v3Error: any) {
+      console.warn('⚠️ V3 엔진 분석 실패, 기본 분석 사용:', v3Error.message)
+      console.error('V3 엔진 오류 상세:', v3Error)
+      // V3 실패 시 기본 분석 사용
       analysisResult = createDefaultAnalysis(body)
     }
 
@@ -294,7 +177,163 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 분석 프롬프트 생성
+// ============================================================
+// V3 엔진 변환 함수들
+// ============================================================
+
+/**
+ * CompleteAnalysisRequest의 spaceInfo를 V3 엔진의 SpaceInfo로 변환
+ */
+function convertSpaceInfo(spaceInfo: CompleteAnalysisRequest['spaceInfo']): SpaceInfo {
+  return {
+    housingType: spaceInfo.housingType,
+    pyeong: spaceInfo.pyeong,
+    squareMeter: spaceInfo.pyeong ? spaceInfo.pyeong * 3.3 : undefined,
+    rooms: spaceInfo.rooms,
+    bathrooms: spaceInfo.bathrooms,
+    // 추가 필드들
+    familySizeRange: spaceInfo.familySizeRange,
+    ageRanges: spaceInfo.ageRanges,
+    lifestyleTags: spaceInfo.lifestyleTags,
+    totalPeople: spaceInfo.totalPeople,
+    livingPurpose: spaceInfo.livingPurpose,
+    livingYears: spaceInfo.livingYears,
+    additionalNotes: spaceInfo.additionalNotes,
+  }
+}
+
+/**
+ * 예산 문자열을 BudgetRange로 변환
+ */
+function convertBudget(budget?: string): BudgetRange {
+  if (!budget) return 'medium'
+  if (budget === 'low' || budget.includes('1000') || budget.includes('2000')) return 'low'
+  if (budget === 'high' || budget === 'premium' || budget.includes('6000')) return 'premium'
+  return 'medium'
+}
+
+/**
+ * V3 엔진 결과를 기존 응답 형식으로 변환
+ */
+function convertV3ResultToLegacyFormat(v3Result: V3AnalysisResult, body: CompleteAnalysisRequest) {
+  const { processResult, riskResult, scenarioResult, explanationResult } = v3Result
+  const { spaceInfo, selectedSpaces, detailOptions, personality } = body
+  
+  // 공정 분석 - InterventionEngine이 축소한 공정 사용
+  const spaceAnalysis = processResult.recommendedProcesses.map((proc: RecommendedProcess) => {
+    // 공간별로 그룹화
+    const spaceName = proc.category || '기타'
+    
+    return {
+      space: spaceName,
+      recommendation: proc.reason || `${proc.label}이 필요합니다. AI가 선택 범위를 정리했습니다.`,
+      tips: proc.priority === 'essential' 
+        ? ['이 공정은 필수입니다. 후회 가능성이 낮은 기준으로 정리했습니다.']
+        : ['이 공정은 권장됩니다.'],
+      estimatedImpact: proc.priority === 'essential' 
+        ? '필수 공정입니다. 이 조건에서는 이 선택이 안전합니다.'
+        : '권장 공정입니다.'
+    }
+  })
+
+  // 공간별로 그룹화 (중복 제거)
+  interface SpaceAnalysisItem {
+    space: string
+    recommendation: string
+    tips: string[]
+    estimatedImpact: string
+  }
+  
+  const spaceMap = new Map<string, SpaceAnalysisItem>()
+  spaceAnalysis.forEach((item: SpaceAnalysisItem) => {
+    if (!spaceMap.has(item.space)) {
+      spaceMap.set(item.space, {
+        space: item.space,
+        recommendation: item.recommendation,
+        tips: item.tips,
+        estimatedImpact: item.estimatedImpact
+      })
+    } else {
+      const existing = spaceMap.get(item.space)!
+      existing.recommendation += ` ${item.recommendation}`
+    }
+  })
+  const groupedSpaceAnalysis = Array.from(spaceMap.values())
+
+  // 경고사항
+  const warnings = [
+    ...riskResult.risks.map((r: Risk) => r.description || r.title),
+    // InterventionEngine 경고는 processResult에 반영되어 있음
+  ]
+
+  // 설명에서 요약 추출
+  const summary = explanationResult?.summary || 
+    `${spaceInfo.pyeong}평 ${spaceInfo.housingType}의 ${selectedSpaces.length}개 공간을 분석했습니다. AI가 선택 범위를 정리했습니다.`
+
+  // 고객 프로필
+  const customerProfile = {
+    lifestyle: explanationResult?.traitInterpretation || 
+      `${processResult.adjustedIndicators?.수납중요도 >= 60 ? '수납을 중시하는' : ''} ${processResult.adjustedIndicators?.동선중요도 >= 60 ? '동선을 중시하는' : ''} 고객님`,
+    priorities: processResult.prioritySpaces?.slice(0, 3).map((s) => s.label) || 
+      processResult.recommendedProcesses.slice(0, 3).map((p) => p.label),
+    style: scenarioResult?.scenarios?.[0]?.category || '모던 내추럴'
+  }
+
+  // 집값 점수 계산
+  const homeValueScore = {
+    score: Math.min(5, Math.max(1, Math.round(
+      3 + (processResult.recommendedProcesses.length * 0.3) + 
+      (processResult.recommendedProcesses.filter((p) => p.priority === 'essential').length * 0.5)
+    ))),
+    reason: processResult.recommendedProcesses.length >= 3
+      ? '주요 공정들이 정리되었습니다. 장기적으로 투자 가치가 있습니다.'
+      : '기본적인 공정들이 정리되었습니다.',
+    investmentValue: '적절한 투자입니다.'
+  }
+
+  // 생활 점수
+  const lifestyleScores = {
+    storage: processResult.adjustedIndicators?.수납중요도 || 60,
+    cleaning: processResult.adjustedIndicators?.관리민감도 || 60,
+    flow: processResult.adjustedIndicators?.동선중요도 || 60,
+    comment: processResult.adjustedIndicators?.수납중요도 >= 70 
+      ? '수납공간이 크게 개선됩니다!'
+      : processResult.adjustedIndicators?.동선중요도 >= 70
+      ? '생활 동선이 획기적으로 개선됩니다!'
+      : '전반적인 생활 품질이 향상됩니다.'
+  }
+
+  // 예산 조언
+  const budgetAdvice = {
+    grade: processResult.gradeRecommendation || 'standard',
+    reason: `고객님의 성향을 고려하여 ${processResult.gradeRecommendation || 'standard'} 등급이 적합합니다.`,
+    savingTips: [
+      '비수기(3-4월, 9-10월) 시공 시 인건비 10-15% 절감 가능',
+      '조명/스위치는 직접 구매 후 설치만 의뢰하면 30% 절약',
+      '타일 줄눈은 회색 계열로 하면 코팅 비용 절감 + 관리 편함'
+    ]
+  }
+
+  // 다음 단계
+  const nextSteps = [
+    '견적서에서 브랜드별 가격 비교해보기',
+    '시공 일정 및 임시 거처 계획 세우기',
+    '자재 샘플 직접 확인 추천'
+  ]
+
+  return {
+    summary,
+    customerProfile,
+    homeValueScore,
+    lifestyleScores,
+    spaceAnalysis: groupedSpaceAnalysis.length > 0 ? groupedSpaceAnalysis : spaceAnalysis,
+    budgetAdvice,
+    warnings: warnings.length > 0 ? warnings : ['시공 전 현장 실측 필수'],
+    nextSteps
+  }
+}
+
+// 분석 프롬프트 생성 (더 이상 사용하지 않지만 호환성을 위해 유지)
 function buildAnalysisPrompt(data: CompleteAnalysisRequest): string {
   const { spaceInfo, selectedSpaces, selectedProcesses, tierSelections, detailOptions, personality } = data
   
@@ -345,6 +384,11 @@ function buildAnalysisPrompt(data: CompleteAnalysisRequest): string {
   // ✅ 특수 조건 추가
   if (specialConditionsTexts.length > 0) {
     prompt += `- 특수 고려사항: ${specialConditionsTexts.join(', ')}\n`
+  }
+
+  // ✅ 추가 정보(additionalNotes) 추가
+  if (spaceInfo.additionalNotes && spaceInfo.additionalNotes.trim()) {
+    prompt += `- 추가 정보: ${spaceInfo.additionalNotes.trim()}\n`
   }
 
   prompt += `
@@ -602,9 +646,29 @@ ${enabledProcesses.map(p => `- ${p}`).join('\n')}
 
   prompt += `
 
-## 🎯 분석 지시사항
+## 🎯 분석 지시사항 (V3.1 설계서 기준)
 
 위 정보를 바탕으로 **고객이 "와, 어떻게 나를 이렇게 잘 알지?!"라고 감탄하는** 분석을 해주세요.
+
+### V3.1 설계서 핵심 원칙
+> 입력(Input)에서 바로 공정(Action)으로 뛰지 말 것.
+> 반드시 **Trait → Needs → Resolution → Action**의 단계적 사고를 거친다.
+
+분석 구조:
+1. **Trait 분석**: 고객의 질문 답변에서 성향 축(안전 민감도, 수납 필요도, 정리 스트레스 등)을 파악
+2. **Needs 도출**: Trait과 집 상태를 기반으로 해결 과제(안전성 강화, 수납 강화, 동선 최적화 등) 정의
+3. **Resolution**: Needs 간 충돌 해결 및 우선순위 조정
+4. **Action**: Needs → 공정/옵션 매핑 및 정리 이유 설명 (추천이 아닌 정리)
+
+설명 구조 (V3.1 설계서 기준):
+1. **고객 상황 요약**: "30대 3인 가족, 25평 아파트에 거주 중이시고, 영유아가 있어 안전과 수납이 동시에 중요한 상황입니다."
+2. **Needs 분석**: "질문 답변을 바탕으로 '안전성 강화'와 '수납 강화' Needs가 강하게 나타났습니다."
+3. **조정 내용(Resolution)**: "짐은 많지만 집은 가볍게 보이길 원하셔서, 눈에 보이지 않는 히든 수납 위주로 설계했습니다."
+4. **공정 정리 이유**: "욕실은 미끄럼 위험이 커서 미끄럼 방지 타일과 안전 손잡이를 필수로 정리했고, 거실에는 벽면 전체를 수납으로 쓰되 문선과 색을 맞춰 시각적으로 깔끔하게 처리했습니다."
+
+설명 톤: 과장 없이, **진단→결론** 구조로.
+- ❌ "~하실 수 있습니다" (불확실한 표현)
+- ✅ "~이 필요합니다" / "~이 더 좋습니다" (전문가 어조)
 
 ### ⚠️ 필수 체크리스트
 1. ✅ 고객이 선택한 성향 답변을 최소 3개 이상 언급했는가?

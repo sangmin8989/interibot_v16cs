@@ -3,6 +3,7 @@ import { quickQuestions } from './quick';
 import { vibeQuestions } from './vibe';
 import { standardQuestions } from './standard';
 import { deepQuestions } from './deep';
+import { judgmentAxesQuestions } from './judgment-axes';
 
 type AnalysisMode = 'quick' | 'standard' | 'deep' | 'vibe';
 
@@ -15,7 +16,8 @@ const QUESTION_COLLECTIONS: Record<AnalysisMode, Question[]> = {
 
 export const questionMap: Record<string, Question> = {};
 
-[...quickQuestions, ...standardQuestions, ...deepQuestions, ...vibeQuestions].forEach((question) => {
+// 모든 질문을 questionMap에 추가 (판단 축 질문 포함)
+[...quickQuestions, ...standardQuestions, ...deepQuestions, ...vibeQuestions, ...judgmentAxesQuestions].forEach((question) => {
   questionMap[question.id] = question;
 });
 
@@ -44,5 +46,5 @@ export const getQuestionsByMode = (rawMode: string): Question[] => {
 };
 
 export * from './types';
-export { quickQuestions, standardQuestions, deepQuestions, vibeQuestions };
+export { quickQuestions, standardQuestions, deepQuestions, vibeQuestions, judgmentAxesQuestions };
 

@@ -132,10 +132,10 @@ function shouldIncludeItem(item: { spaces?: string[] }, selectedSpaces: string[]
 function selectProcesses(input: EstimateInput): string[] {
   console.log('🔍 selectProcesses 입력:', {
     selectedProcesses: input.selectedProcesses,
-    selectedSpaces: input.selectedSpaces,
-    tierSelections: input.tierSelections ? Object.keys(input.tierSelections) : null
+    selectedSpaces: input.selectedSpaces
   })
   
+  // ✅ 헌법 적용: tierSelections 제거 - processSelections만 SSOT로 사용
   // ✅ 1순위: selectedProcesses (사용자가 공정 선택 페이지에서 직접 선택한 공정)
   if (input.selectedProcesses && input.selectedProcesses.length > 0) {
     const converted = input.selectedProcesses.map(code => convertProcessCodeToName(code))
@@ -143,27 +143,6 @@ function selectProcesses(input: EstimateInput): string[] {
     const uniqueProcesses = [...new Set(converted)]
     console.log('📦 사용자 선택 공정:', uniqueProcesses)
     return uniqueProcesses
-  }
-  
-  // ✅ 2순위: tierSelections 기반
-  if (input.tierSelections) {
-    const enabledProcesses: string[] = []
-    
-    Object.entries(input.tierSelections).forEach(([processId, selection]) => {
-      if (selection.enabled) {
-        const processName = TIER_TO_PROCESS[processId]
-        if (processName && !enabledProcesses.includes(processName)) {
-          enabledProcesses.push(processName)
-        }
-      }
-    })
-    
-    if (enabledProcesses.length > 0) {
-      enabledProcesses.push('기타')
-      const uniqueProcesses = [...new Set(enabledProcesses)]
-      console.log('📦 tier 선택 공정:', uniqueProcesses)
-      return uniqueProcesses
-    }
   }
   
   // ✅ 3순위: selectedSpaces 기반 자동 생성 (공정 선택 안 한 경우)

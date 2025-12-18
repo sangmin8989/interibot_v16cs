@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 import { PREFERENCE_CATEGORIES, PreferenceCategory } from '@/lib/analysis/questions/types'
+import { resetEverything } from '@/lib/utils/resetAllStores'
 import ImageComparison from '@/components/ImageComparison'
 
 interface AnalysisRecord {
@@ -1460,10 +1461,15 @@ export default function ResultContent() {
         {/* 하단 버튼들 */}
         <div className="flex gap-4 flex-col md:flex-row">
           <button
-            onClick={() => router.push('/')}
+            onClick={() => {
+              if (confirm('모든 입력 정보를 초기화하고 처음부터 다시 시작하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+                resetEverything()
+                router.push('/')
+              }
+            }}
             className="flex-1 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition-all text-base min-h-[52px]"
           >
-            다시 시작
+            🔄 새로 시작하기
           </button>
           <button
             onClick={() => {

@@ -20,7 +20,7 @@ import {
   CheckCircle2, Circle, Home
 } from 'lucide-react'
 
-// 공간별 예상 비용 (30평 기준, 만원 단위)
+// 공간별 예상 비용 (동적 평수 기준, 만원 단위)
 const SPACE_ESTIMATED_COST: Record<SpaceId, { min: number; max: number }> = {
   living: { min: 300, max: 800 },
   kitchen: { min: 800, max: 1500 },
@@ -378,6 +378,15 @@ export default function ScopePage() {
     }
   }, [isInitialized, spaceInfo?.rooms, spaceInfo?.bathrooms, initializeSpaces])
 
+  // ✅ 평수 정보 로깅 (useEffect 안에서 실행, 평수만 의존성으로 사용하여 무한 루프 방지)
+  useEffect(() => {
+    if (spaceInfo?.pyeong && typeof window !== 'undefined') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/0dabd650-07da-4349-8c05-322963e8e682',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/onboarding/scope/page.tsx:382',message:'공사 범위 페이지 평수 표시',data:{spaceInfoPyeong:spaceInfo.pyeong,spaceInfoSize:(spaceInfo as any).size,전체spaceInfo:JSON.stringify(spaceInfo)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+      // #endregion
+    }
+  }, [spaceInfo?.pyeong]) // ✅ 평수만 의존성으로 사용하여 무한 루프 방지
+
   // 선택된 공간
   const selectedSpaceIds = selectedSpaces
     .filter(space => space.isSelected)
@@ -423,7 +432,7 @@ export default function ScopePage() {
 
   return (
     <>
-      <StepIndicator currentStep={2} />
+      <StepIndicator currentStep={3} />
 
       <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-argen-50/30 py-8 px-4 pb-40">
         <div className="max-w-3xl mx-auto">
@@ -436,9 +445,11 @@ export default function ScopePage() {
               공간을 선택하면 장단점과 예상 비용을 확인할 수 있어요
             </p>
             {spaceInfo && (
-              <p className="text-sm text-argen-500 mt-2">
-                🏠 {spaceInfo.pyeong}평 {spaceInfo.housingType} · 방 {spaceInfo.rooms}개 · 화장실 {spaceInfo.bathrooms}개
-              </p>
+              <>
+                <p className="text-sm text-argen-500 mt-2">
+                  🏠 {spaceInfo.pyeong || 0}평 {spaceInfo.housingType} · 방 {spaceInfo.rooms || 0}개 · 화장실 {spaceInfo.bathrooms || 0}개
+                </p>
+              </>
             )}
           </div>
 

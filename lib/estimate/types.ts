@@ -309,10 +309,9 @@ export interface EstimateInput {
   // 성향
   성향?: TraitPreference
   
-  // 공정 선택
+  // 공정 선택 (헌법 적용: tierSelections 제거)
   selectedProcesses?: string[]
   selectedSpaces?: string[]
-  tierSelections?: Record<string, { enabled: boolean; tier: string }>
 }
 
 // ============================================================
@@ -335,6 +334,10 @@ export interface LineItem {
     작업기간단위: string
     설명: string
   }
+  // ✅ Phase 2: LOCK 공정 정보
+  isLocked?: boolean
+  lockReason?: string
+  canOverride?: boolean
 }
 
 export interface GradeResult {

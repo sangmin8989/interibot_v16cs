@@ -3,9 +3,11 @@
 import { useState, Suspense, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
+import { motion } from 'framer-motion'
 import StepIndicator from '@/components/onboarding/StepIndicator'
 import { useSpaceInfoStore, HousingTypeLabel, ApproximateRange, AgeGroups, SpecialConditions } from '@/lib/store/spaceInfoStore'
 import { BudgetRange, BUDGET_OPTIONS } from '@/lib/data/budget-options'
+import { resetEverything } from '@/lib/utils/resetAllStores'
 import AgeRangeSection from '@/components/step1/AgeRangeSection'
 import FamilySizeSection from '@/components/step1/FamilySizeSection'
 import LifeStyleSection from '@/components/step1/LifeStyleSection'
@@ -133,6 +135,7 @@ function SpaceInfoPageContent() {
   const [ageRanges, setAgeRanges] = useState<string[]>([]) // 다중 선택으로 변경
   const [familySizeRange, setFamilySizeRange] = useState<string | null>(null)
   const [lifestyleTags, setLifestyleTags] = useState<string[]>([])
+  const [additionalNotes, setAdditionalNotes] = useState<string>('') // 추가 정보 (자유 입력)
   
   // 예산 state
   const [selectedBudget, setSelectedBudget] = useState<BudgetRange>('unknown')
@@ -141,6 +144,9 @@ function SpaceInfoPageContent() {
   // 거주 목적/기간 state
   const [livingPurpose, setLivingPurpose] = useState<'실거주' | '매도준비' | '임대' | '입력안함'>('입력안함')
   const [livingYears, setLivingYears] = useState<number | undefined>(undefined)
+
+  // 폼 제출 상태
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // 유효성 검사 에러 state
   const [errors, setErrors] = useState<{
@@ -197,6 +203,7 @@ function SpaceInfoPageContent() {
     setAgeRanges([])
     setFamilySizeRange(null)
     setLifestyleTags([])
+    setAdditionalNotes('') // 추가 정보 리셋
     setSelectedBudget('unknown')
     setBudgetAmount(undefined)
     setLivingPurpose('입력안함')
@@ -206,16 +213,52 @@ function SpaceInfoPageContent() {
 
   // ✅ 페이지 마운트 시 저장된 데이터 로드 (핵심 수정!)
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/0dabd650-07da-4349-8c05-322963e8e682',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/space-info/page.tsx:214',message:'useEffect 진입 (데이터 로드)',data:{hasStoredSpaceInfo:!!storedSpaceInfo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    
     // URL 쿼리 파라미터로 리셋 여부 확인
     const shouldReset = searchParams.get('reset') === 'true'
+    const shouldClear = searchParams.get('clear') === 'true'
+    
+    // localStorage 클리어 (개발 환경)
+    if (shouldClear && process.env.NODE_ENV === 'development') {
+      const storeKeys = [
+        'space-info-storage',
+        'personality-analysis-storage',
+        'scope-selection-storage',
+        'process-selection-storage',
+      ]
+      storeKeys.forEach(key => {
+        localStorage.removeItem(key)
+        console.log(`✅ ${key} 클리어 완료`)
+      })
+      console.log('🎉 모든 store 데이터 클리어 완료!')
+      // URL에서 clear 파라미터 제거하고 새로고침
+      const newUrl = window.location.pathname + (searchParams.get('reset') ? '?reset=true' : '')
+      window.history.replaceState({}, '', newUrl)
+      window.location.reload()
+      return
+    }
     
     if (shouldReset) {
       resetAllFields()
       return
     }
     
-    // ✅ 저장된 데이터가 있으면 로컬 state에 로드
+    // ✅ 저장된 데이터 유효성 확인
     if (storedSpaceInfo) {
+      // timestamp 확인 - 1시간 이상 지났으면 초기화 (새 온보딩으로 간주)
+      const savedTime = new Date(storedSpaceInfo.timestamp).getTime()
+      const currentTime = new Date().getTime()
+      const ONE_HOUR = 60 * 60 * 1000
+      
+      if (currentTime - savedTime > ONE_HOUR) {
+        console.log('⏰ 저장된 데이터가 1시간 이상 지남 - 새 온보딩 시작')
+        resetAllFields()
+        return
+      }
+      
       console.log('📦 저장된 집 정보 로드:', storedSpaceInfo)
       
       // 주거형태 변환
@@ -262,8 +305,11 @@ function SpaceInfoPageContent() {
       setBudgetAmount(storedSpaceInfo.budgetAmount)
       setLivingPurpose(storedSpaceInfo.livingPurpose || '입력안함')
       setLivingYears(storedSpaceInfo.livingYears)
+      setAdditionalNotes(storedSpaceInfo.additionalNotes || '') // 추가 정보 로드
       
       console.log('✅ 집 정보 로드 완료 - 평수:', loadedPyeong)
+    } else {
+      console.log('📝 새로운 집 정보 입력 시작')
     }
   }, [storedSpaceInfo, searchParams, resetAllFields])
 
@@ -298,7 +344,11 @@ function SpaceInfoPageContent() {
 
   const handleHousingTypeChange = (type: HousingType) => {
     setSpaceInfo(prev => ({ ...prev, housingType: type }))
-    // Store 업데이트는 제출 시에만 하도록 변경 (리셋 문제 방지)
+    // ✅ Store에도 즉시 저장 (주거형태가 리셋되는 문제 방지)
+    updateSpaceInfo({
+      housingType: housingTypeToLabel(type),
+    })
+    console.log('🏠 주거형태 변경:', { type, label: housingTypeToLabel(type) })
   }
 
   const handleRegionChange = (region: Region) => {
@@ -308,27 +358,48 @@ function SpaceInfoPageContent() {
   const handleSizeChange = (size: number) => {
     // 백스페이스로 지울 때 0도 허용 (size >= 0)
     if (size >= 0 && size <= 500) {
-      // ✅ 한 번만 상태 업데이트 (입력 중단 방지)
+      console.log('📝 [평수 입력 시작]:', { 
+        입력값: size, 
+        현재모드: sizeInputMode, 
+        현재범위: approximateRange,
+        현재spaceInfoSize: spaceInfo.size,
+        저장된pyeong: storedSpaceInfo?.pyeong,
+      });
+      
+      // ✅ 모든 state 업데이트를 함께 처리
+      // 직접 평수를 입력하면 입력 모드를 'exact'로 자동 변경
+      if (sizeInputMode === 'approximate' && size > 0) {
+        console.log('🔄 [입력 모드 변경] approximate → exact');
+        setSizeInputMode('exact');
+      }
+      
+      // ✅ approximateRange가 설정되어 있고, 사용자가 직접 평수를 입력하면 무조건 초기화
+      // 차이와 상관없이 직접 입력하면 무조건 초기화 (주석과 일치하도록 수정)
+      if (approximateRange && size > 0) {
+        console.log('🔄 [approximateRange 초기화] 직접 입력 감지:', { 
+          이전범위: approximateRange, 
+          입력값: size 
+        });
+        setApproximateRange('');
+      }
+      
+      // 방 개수와 화장실 개수 자동 제안
       let suggestedRooms = spaceInfo.roomCount || 0
       let suggestedBathrooms = spaceInfo.bathroomCount || 0
       
-      // 평수 변경 시 자동으로 방 개수 제안 (auto 모드일 때만)
       if (roomCountMode === 'auto' || roomCountMode === 'unknown') {
         suggestedRooms = getSuggestedRoomCount(size)
-        // Pulse 효과 트리거
         setPulseRoomCount(true)
         setTimeout(() => setPulseRoomCount(false), 600)
       }
       
-      // 평수 변경 시 자동으로 화장실 개수 제안 (auto 모드일 때만)
       if (bathroomCountMode === 'auto' || bathroomCountMode === 'unknown') {
         suggestedBathrooms = getSuggestedBathroomCount(size)
-        // Pulse 효과 트리거
         setPulseBathroomCount(true)
         setTimeout(() => setPulseBathroomCount(false), 600)
       }
       
-      // ✅ 한 번만 상태 업데이트 (입력 중단 방지)
+      // ✅ 한 번에 상태 업데이트 (로컬 state + Zustand store 모두 업데이트)
       setSpaceInfo(prev => ({
         ...prev,
         size,
@@ -336,12 +407,58 @@ function SpaceInfoPageContent() {
         bathroomCount: suggestedBathrooms
       }))
       
+      // ✅ Zustand store도 함께 업데이트 (올바른 필드명 사용: size → pyeong, roomCount → rooms, bathroomCount → bathrooms)
+      // ✅ 주거형태도 함께 저장하여 리셋 방지
+      console.log('💾 [Zustand 저장 시작]:', { 
+        저장할평수: size,
+        현재저장된평수: storedSpaceInfo?.pyeong,
+      });
+      
+      // ✅ 평수를 먼저 명시적으로 저장 (우선순위 최상위)
+      // ✅ 직접 평수 입력 시 approximateRange를 undefined로 명시적으로 초기화
+      updateSpaceInfo({
+        pyeong: size, // ✅ 입력한 평수를 명시적으로 저장
+        approximateRange: undefined, // ✅ 직접 입력 시 approximateRange 명시적으로 초기화
+        inputMethod: 'exact', // ✅ 입력 방식도 명시
+      })
+      
+      // ✅ 나머지 정보 저장
+      updateSpaceInfo({
+        housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 현재 주거형태 유지
+        pyeong: size, // ✅ 평수 다시 한 번 명시 (중복 저장으로 확실히 보장)
+        squareMeter: parseFloat((size * 3.3058).toFixed(2)), // 제곱미터도 함께 계산
+        rooms: suggestedRooms, // ✅ roomCount가 아니라 rooms로 저장
+        bathrooms: suggestedBathrooms, // ✅ bathroomCount가 아니라 bathrooms로 저장
+        approximateRange: undefined, // ✅ 직접 입력 시 approximateRange 명시적으로 초기화 (이중 체크)
+        inputMethod: 'exact', // ✅ 입력 방식 명시
+      })
+      
+      // ✅ 저장 확인
+      setTimeout(() => {
+        const saved = useSpaceInfoStore.getState().spaceInfo;
+        console.log('✅ [Zustand 저장 확인]:', { 
+          저장한평수: size,
+          실제저장된평수: saved?.pyeong,
+          일치여부: saved?.pyeong === size ? '✅ 일치' : '❌ 불일치',
+        });
+        if (saved?.pyeong !== size) {
+          console.error('❌ [평수 저장 실패!] 재시도...');
+          updateSpaceInfo({ pyeong: size });
+        }
+      }, 100);
+      
       // 입력 시 에러 제거
       if (errors.size) {
         setErrors({ ...errors, size: undefined })
       }
       
-      console.log('📝 평수 입력:', { 입력값: size, 방개수: suggestedRooms, 화장실개수: suggestedBathrooms })
+      console.log('✅ [평수 업데이트 완료]:', { 
+        size, 
+        roomCount: suggestedRooms, 
+        bathroomCount: suggestedBathrooms,
+        입력모드: 'exact',
+        approximateRange: '', // 초기화됨
+      })
     }
   }
 
@@ -379,6 +496,7 @@ function SpaceInfoPageContent() {
       '50평 이상'
     
     updateSpaceInfo({
+      housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
       pyeong,
       squareMeter: parseFloat((pyeong * 3.3058).toFixed(2)),
       inputMethod: 'approximate',
@@ -401,6 +519,7 @@ function SpaceInfoPageContent() {
       setRoomCountMode('manual')
       // Store 업데이트
       updateSpaceInfo({
+        housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
         rooms: count,
         isRoomAuto: false,
       })
@@ -418,6 +537,7 @@ function SpaceInfoPageContent() {
       const suggestedRooms = getSuggestedRoomCount(spaceInfo.size)
       setSpaceInfo({ ...spaceInfo, roomCount: suggestedRooms })
       updateSpaceInfo({
+        housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
         rooms: suggestedRooms,
         isRoomAuto: true,
       })
@@ -430,6 +550,7 @@ function SpaceInfoPageContent() {
       setBathroomCountMode('manual')
       // Store 업데이트
       updateSpaceInfo({
+        housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
         bathrooms: count,
         isBathroomAuto: false,
       })
@@ -447,6 +568,7 @@ function SpaceInfoPageContent() {
       const suggestedBathrooms = getSuggestedBathroomCount(spaceInfo.size)
       setSpaceInfo({ ...spaceInfo, bathroomCount: suggestedBathrooms })
       updateSpaceInfo({
+        housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
         bathrooms: suggestedBathrooms,
         isBathroomAuto: true,
       })
@@ -467,6 +589,7 @@ function SpaceInfoPageContent() {
     
     // Store 업데이트
     updateSpaceInfo({
+      housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
       ageGroups: newAgeGroups,
       totalPeople: total,
     })
@@ -487,6 +610,7 @@ function SpaceInfoPageContent() {
     
     // Store 업데이트
     updateSpaceInfo({
+      housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
       ageGroups: newAgeGroups,
       totalPeople: total,
     })
@@ -499,11 +623,20 @@ function SpaceInfoPageContent() {
     
     // Store 업데이트
     updateSpaceInfo({
+      housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
       specialConditions: newConditions,
     })
   }
 
   const handleNext = () => {
+    // 중복 제출 방지
+    if (isSubmitting) {
+      console.log('⏳ 이미 제출 중입니다...')
+      return
+    }
+    
+    setIsSubmitting(true)
+    
     // 에러 초기화
     const newErrors: { housingType?: string; size?: string } = {}
 
@@ -512,36 +645,125 @@ function SpaceInfoPageContent() {
       newErrors.housingType = '주거형태를 선택해주세요'
     }
 
-    // 2. 평수 검증
-    if (spaceInfo.size <= 0) {
-      newErrors.size = '평수를 입력해주세요'
-    } else if (sizeInputMode === 'approximate' && !approximateRange) {
-      newErrors.size = '평수 범위를 선택해주세요'
+    // ✅ 평수 최종 확인 및 저장 (직접 입력값 절대 우선!)
+    // ⚠️ 중요: 사용자가 직접 입력한 평수는 절대 덮어쓰면 안 됨!
+    // 1순위: spaceInfo.size (사용자가 직접 입력한 값) - 절대 우선!
+    // 2순위: storedSpaceInfo.pyeong (이전에 저장된 값)
+    // 3순위: approximateRange (범위 선택만 한 경우)
+    
+    let finalPyeong = 0;
+    
+    // ✅ 1순위: spaceInfo.size가 있으면 무조건 사용 (직접 입력값이 최우선!)
+    // ⚠️ approximateRange가 있어도 spaceInfo.size가 있으면 spaceInfo.size를 사용!
+    if (spaceInfo.size && spaceInfo.size > 0) {
+      finalPyeong = Number(spaceInfo.size);
+      console.log('✅ [평수 우선순위 1] spaceInfo.size 사용 (직접 입력값 우선!):', {
+        입력값: finalPyeong,
+        approximateRange: approximateRange || '없음',
+        sizeInputMode,
+        경고: approximateRange ? '⚠️ approximateRange가 있지만 직접 입력값을 우선 사용합니다!' : '',
+      });
+      
+      // ✅ 직접 입력값이 있으면 approximateRange 초기화 (혹시 모를 충돌 방지)
+      if (approximateRange) {
+        console.log('🔄 [approximateRange 강제 초기화] 직접 입력값이 있으므로 범위 선택 무시');
+        setApproximateRange('');
+      }
+    }
+    // ✅ 2순위: storedSpaceInfo.pyeong 확인 (handleSizeChange에서 저장했을 수 있음)
+    else if (storedSpaceInfo?.pyeong && storedSpaceInfo.pyeong > 0) {
+      finalPyeong = Number(storedSpaceInfo.pyeong);
+      console.log('✅ [평수 우선순위 2] storedSpaceInfo.pyeong 사용:', {
+        저장된값: finalPyeong,
+        sizeInputMode,
+        approximateRange: approximateRange || '없음',
+      });
+    }
+    // ✅ 3순위: approximateRange 사용 (직접 입력값이 없을 때만)
+    else if (sizeInputMode === 'approximate' && approximateRange) {
+      const rangePyeongMap: Record<string, number> = {
+        '20s': 22,
+        '30s': 32,
+        '40s': 42,
+        '50plus': 55,
+      };
+      finalPyeong = rangePyeongMap[approximateRange] || 0;
+      console.log('✅ [평수 우선순위 3] approximateRange 사용 (직접 입력값 없음):', {
+        입력모드: sizeInputMode,
+        범위: approximateRange,
+        추출평수: finalPyeong,
+      });
+    }
+    
+    // 최종 검증
+    finalPyeong = Number(finalPyeong);
+    
+    // ✅ 입력한 평수가 있으면 반드시 그대로 사용 (절대 변경 금지)
+    if (spaceInfo.size && spaceInfo.size > 0) {
+      finalPyeong = Number(spaceInfo.size);
+      console.log('✅ [최종 확정] 입력한 평수로 강제 설정:', finalPyeong);
+    }
+    
+    console.log('🔍 [평수 최종 검증]:', {
+      spaceInfoSize: spaceInfo.size,
+      storedPyeong: storedSpaceInfo?.pyeong,
+      sizeInputMode,
+      approximateRange: approximateRange || '없음',
+      최종평수: finalPyeong,
+      isValid: finalPyeong > 0 && !isNaN(finalPyeong),
+      경고: spaceInfo.size && spaceInfo.size > 0 && finalPyeong !== spaceInfo.size 
+        ? '❌ 직접 입력값과 최종값이 다릅니다! 이는 심각한 오류입니다!' 
+        : '✅ 정상',
+    });
+    
+    // ✅ 평수 검증 (finalPyeong 기준으로 검증) - finalPyeong 계산 후에만 검증
+    if (!finalPyeong || finalPyeong <= 0 || isNaN(finalPyeong)) {
+      if (sizeInputMode === 'approximate' && !approximateRange) {
+        newErrors.size = '평수 범위를 선택해주세요. 정확한 평수를 모르시면 "대략만 알아요"에서 범위를 선택하시면 됩니다.'
+      } else {
+        newErrors.size = '평수를 입력해주세요. 등기부등본이나 네이버 부동산의 전용면적을 확인하시면 정확합니다.'
+      }
+    } else if (finalPyeong > 500) {
+      // 최대값만 제한 (500평 초과는 비현실적)
+      newErrors.size = '평수가 너무 큽니다. 500평 이하로 입력해주세요.'
+    } else if (finalPyeong % 1 !== 0 && finalPyeong % 0.5 !== 0) {
+      // 소수점이 0.5 단위가 아니면 경고 (하지만 허용)
+      console.warn('⚠️ 평수가 0.5 단위가 아닙니다:', finalPyeong)
     }
 
     // 에러가 있으면 표시하고 스크롤 이동
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      console.error('❌ 검증 실패:', newErrors);
       
-      // 첫 번째 에러 필드로 스크롤 이동
+      // 첫 번째 에러 필드로 스크롤 이동 + 시각적 피드백
       const firstErrorField = Object.keys(newErrors)[0]
       setTimeout(() => {
         const element = document.getElementById(`field-${firstErrorField}`)
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' })
           element.focus()
+          
+          // 에러 필드에 진동 효과 (모바일)
+          if ('vibrate' in navigator) {
+            navigator.vibrate(200)
+          }
+          
+          // 에러 필드에 애니메이션 효과
+          element.classList.add('animate-shake')
+          setTimeout(() => {
+            element.classList.remove('animate-shake')
+          }, 500)
         }
       }, 100)
       
+      setIsSubmitting(false)
       return
     }
 
     // 에러 없으면 초기화
     setErrors({})
-
-    // 방 개수와 화장실 개수가 없으면 자동값 사용
-    const finalRoomCount = spaceInfo.roomCount || getSuggestedRoomCount(spaceInfo.size)
-    const finalBathroomCount = spaceInfo.bathroomCount || getSuggestedBathroomCount(spaceInfo.size)
+    console.log('✅ 검증 통과, 다음 단계로 진행');
 
     // 최종 검증 후 Store에 확정 저장
     const approximateRangeLabel: ApproximateRange | undefined = 
@@ -551,29 +773,30 @@ function SpaceInfoPageContent() {
       approximateRange === '50plus' ? '50평 이상' :
       undefined
 
-    // ✅ 평수 최종 확인 및 저장 (핵심!)
-    const finalPyeong = Number(spaceInfo.size) // ✅ 숫자로 확실히 변환
-    console.log('💾 집 정보 최종 저장:', { 
-      입력한평수: finalPyeong, 
-      입력방식: sizeInputMode,
-      범위: approximateRangeLabel,
-      현재저장된평수: storedSpaceInfo?.pyeong,
-      spaceInfoSize: spaceInfo.size
-    })
-    
-    // ✅ 평수 검증
-    if (!finalPyeong || finalPyeong <= 0 || isNaN(finalPyeong)) {
-      setErrors({ ...errors, size: '평수를 올바르게 입력해주세요' })
-      return
-    }
+    // 방 개수와 화장실 개수가 없으면 자동값 사용 (finalPyeong 사용)
+    const finalRoomCount = spaceInfo.roomCount || getSuggestedRoomCount(finalPyeong)
+    const finalBathroomCount = spaceInfo.bathroomCount || getSuggestedBathroomCount(finalPyeong)
 
     // ✅ 확정 저장 (기존 값 무시하고 완전히 덮어쓰기)
+    // ⚠️ 중요: finalPyeong이 spaceInfo.size와 다르면 경고!
+    if (spaceInfo.size && spaceInfo.size > 0 && finalPyeong !== spaceInfo.size) {
+      console.error('❌ [심각한 오류] 직접 입력값과 최종값이 다릅니다!', {
+        직접입력값: spaceInfo.size,
+        최종값: finalPyeong,
+        차이: Math.abs(spaceInfo.size - finalPyeong),
+        경고: '직접 입력값을 우선 사용합니다!',
+      });
+      // 직접 입력값을 강제로 사용
+      finalPyeong = Number(spaceInfo.size);
+    }
+    
     const updateData = {
       housingType: housingTypeToLabel(spaceInfo.housingType),
       pyeong: finalPyeong, // ✅ 입력한 평수 그대로 저장 (덮어쓰기)
       squareMeter: parseFloat((finalPyeong * 3.3058).toFixed(2)),
       inputMethod: sizeInputMode,
-      approximateRange: approximateRangeLabel,
+      // ✅ 직접 입력이면 approximateRange를 undefined로 설정, 범위 선택이면 approximateRangeLabel 사용
+      approximateRange: sizeInputMode === 'exact' ? undefined : approximateRangeLabel,
       rooms: finalRoomCount,
       bathrooms: finalBathroomCount,
       isRoomAuto: roomCountMode === 'auto' || roomCountMode === 'unknown',
@@ -584,13 +807,26 @@ function SpaceInfoPageContent() {
       ageRanges,
       familySizeRange,
       lifestyleTags,
+      additionalNotes, // 추가 정보
       budget: selectedBudget,
       budgetAmount,
       livingPurpose,
       livingYears,
     }
     
-    console.log('💾 저장할 데이터:', updateData)
+      console.log('💾 [최종 저장 데이터]:', {
+      평수: updateData.pyeong,
+      직접입력값: spaceInfo.size,
+      저장된값: storedSpaceInfo?.pyeong,
+      일치여부: updateData.pyeong === spaceInfo.size ? '✅ 일치' : '⚠️ 확인 필요',
+      전체데이터: updateData,
+    });
+      
+      // #region agent log
+      if (typeof window !== 'undefined') {
+        fetch('http://127.0.0.1:7242/ingest/0dabd650-07da-4349-8c05-322963e8e682',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'space-info/page.tsx:806',message:'집 정보 입력 최종 저장',data:{평수:updateData.pyeong,직접입력값:spaceInfo.size,저장된값:storedSpaceInfo?.pyeong,일치여부:updateData.pyeong === spaceInfo.size ? '일치' : '불일치',전체데이터:updateData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+      }
+      // #endregion
     
     // ✅ 평수를 먼저 확실히 저장 (별도로 한 번 더)
     updateSpaceInfo({ pyeong: finalPyeong })
@@ -598,34 +834,60 @@ function SpaceInfoPageContent() {
     // ✅ 전체 데이터 저장
     updateSpaceInfo(updateData)
     
-    // ✅ 저장 확인 (여러 번 확인)
-    const checkSaved = () => {
+    // ✅ 저장 확인 (여러 번 확인, 최대 3회 재시도)
+    const checkSaved = (retryCount = 0) => {
       const saved = useSpaceInfoStore.getState().spaceInfo
-      console.log('✅ 저장 확인:', { 저장된평수: saved?.pyeong, 입력한평수: finalPyeong })
+      console.log(`✅ [저장 확인 ${retryCount === 0 ? '1차' : `${retryCount + 1}차`}]:`, { 
+        저장된평수: saved?.pyeong, 
+        입력한평수: finalPyeong,
+        직접입력값: spaceInfo.size,
+        일치여부: saved?.pyeong === finalPyeong ? '✅ 일치' : '❌ 불일치',
+      })
+      
       if (saved?.pyeong !== finalPyeong) {
-        console.error('❌ 평수 저장 실패!', { 저장된값: saved?.pyeong, 입력값: finalPyeong })
-        // 재시도 (강제로 덮어쓰기)
-        updateSpaceInfo({ pyeong: finalPyeong })
-        setTimeout(() => {
-          const retrySaved = useSpaceInfoStore.getState().spaceInfo
-          console.log('🔄 재시도 후 저장 확인:', { 저장된평수: retrySaved?.pyeong, 입력한평수: finalPyeong })
-          if (retrySaved?.pyeong !== finalPyeong) {
-            console.error('❌ 재시도 실패! localStorage 직접 확인 필요')
-            // localStorage 직접 확인
-            if (typeof window !== 'undefined') {
-              const stored = localStorage.getItem('space-info-storage')
-              console.log('💾 localStorage 직접 확인:', stored)
+        console.error('❌ [평수 저장 실패!]', { 
+          저장된값: saved?.pyeong, 
+          입력값: finalPyeong,
+          직접입력값: spaceInfo.size,
+          재시도횟수: retryCount,
+        })
+        
+        // 최대 3회 재시도
+        if (retryCount < 3) {
+          console.log(`🔄 [재시도 ${retryCount + 1}/3] 평수 강제 저장...`)
+          updateSpaceInfo({ pyeong: finalPyeong })
+          setTimeout(() => {
+            checkSaved(retryCount + 1)
+          }, 200)
+        } else {
+          console.error('❌ [재시도 실패!] localStorage 직접 확인 필요')
+          // localStorage 직접 확인
+          if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('space-info-storage')
+            console.log('💾 [localStorage 직접 확인]:', stored)
+            try {
+              const parsed = JSON.parse(stored || '{}')
+              console.log('💾 [파싱된 데이터]:', parsed)
+              if (parsed.state?.spaceInfo?.pyeong !== finalPyeong) {
+                console.error('❌ [localStorage에도 저장 실패!] 수동 수정 필요')
+              }
+            } catch (e) {
+              console.error('❌ [localStorage 파싱 실패]:', e)
             }
           }
-        }, 200)
+        }
       } else {
-        console.log('✅ 평수 저장 성공!')
+        console.log('✅ [평수 저장 성공!] 최종 확인:', {
+          저장된평수: saved?.pyeong,
+          직접입력값: spaceInfo.size,
+          최종값: finalPyeong,
+        })
       }
     }
     
-    setTimeout(checkSaved, 100)
-    setTimeout(checkSaved, 300)
-    setTimeout(checkSaved, 500)
+    setTimeout(() => checkSaved(0), 100)
+    setTimeout(() => checkSaved(0), 300)
+    setTimeout(() => checkSaved(0), 500)
 
     // 공간 정보를 쿼리 파라미터로 전달하여 성향 분석 페이지로 이동
     const params = new URLSearchParams({
@@ -637,8 +899,13 @@ function SpaceInfoPageContent() {
       bathroomCount: finalBathroomCount.toString(),
     })
     
-    // 새 플로우: 집정보 → 공간선택 → AI장단점 → 성향분석
-    router.push(`/onboarding/scope?${params.toString()}`)
+    // 새 플로우: 집정보 → 성향분석 (기본 진입)
+    router.push(`/onboarding/personality?${params.toString()}`)
+    
+    // 제출 완료 후 상태 초기화 (페이지 이동 전까지)
+    setTimeout(() => {
+      setIsSubmitting(false)
+    }, 1000)
   }
 
   return (
@@ -649,7 +916,25 @@ function SpaceInfoPageContent() {
       <main className="flex min-h-screen flex-col items-center p-4 md:p-6 lg:p-8 pt-12 md:pt-16 bg-gradient-to-br from-white via-argen-50/30 to-roseSoft/40 animate-fadeIn">
         <div className="w-full max-w-[800px]">
           {/* 타이틀 영역 */}
-          <div className="text-center mb-4 md:mb-6">
+          <div className="text-center mb-4 md:mb-6 relative">
+            {/* 초기화 버튼 */}
+            {storedSpaceInfo && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('모든 입력 정보를 초기화하고 처음부터 다시 시작하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+                    resetEverything()
+                    router.push('/') // ✅ 첫 페이지(홈)로 이동
+                  }
+                }}
+                className="absolute right-2 top-0 text-xs md:text-sm text-gray-500 hover:text-red-600 transition-colors duration-200 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50"
+                aria-label="입력 정보 초기화"
+              >
+                <span>🔄</span>
+                <span className="hidden md:inline">새로 시작하기</span>
+              </button>
+            )}
+            
             {/* 메인 타이틀 */}
             <h1 className="text-xl md:text-2xl font-bold text-gray-900 px-2">
               어떤 집을 얼마나 바꾸고 싶으세요?
@@ -865,30 +1150,37 @@ function SpaceInfoPageContent() {
                       <input
                         id="pyeong-input"
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         min="1"
                         max="500"
                         value={spaceInfo.size || ''}
                         onChange={(e) => {
                           const inputValue = e.target.value
-                          // ✅ 빈 문자열 처리 개선 (입력 중단 방지)
+                          console.log('🔤 Input onChange:', { inputValue, type: typeof inputValue });
+                          
+                          // 빈 문자열 처리
                           if (inputValue === '' || inputValue === null || inputValue === undefined) {
                             handleSizeChange(0)
-                          } else {
-                            const numValue = parseInt(inputValue, 10)
-                            if (!isNaN(numValue)) {
-                              handleSizeChange(numValue)
-                              
-                              // ✅ 자동 포커스 이동: 3자리 입력 시 다음 필드로 이동
-                              if (inputValue.length >= 3) {
-                                setTimeout(() => {
-                                  const nextInput = document.getElementById('family-size-input') as HTMLElement
-                                  if (nextInput) {
-                                    nextInput.focus()
-                                  }
-                                }, 100)
-                              }
+                            return
+                          }
+                          
+                          // 숫자로 변환 (소수점 지원: 25.5평 등)
+                          const numValue = parseFloat(inputValue)
+                          if (!isNaN(numValue) && numValue >= 0 && numValue <= 500) {
+                            handleSizeChange(numValue)
+                            
+                            // 3자리 입력 시 다음 필드로 자동 이동
+                            if (inputValue.length >= 3) {
+                              setTimeout(() => {
+                                const nextInput = document.getElementById('family-size-input') as HTMLElement
+                                if (nextInput) {
+                                  nextInput.focus()
+                                }
+                              }, 100)
                             }
                           }
+                          
                           // 입력 시 에러 제거
                           if (errors.size) {
                             setErrors({ ...errors, size: undefined })
@@ -959,9 +1251,18 @@ function SpaceInfoPageContent() {
                 
                 {/* 에러 메시지 */}
                 {errors.size && (
-                  <p id="size-error" className="text-sm text-red-600 mt-2" role="alert" aria-live="polite">
-                    {errors.size}
-                  </p>
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 p-3 bg-red-50 border-l-4 border-red-500 rounded-r-lg"
+                  >
+                    <p id="size-error" className="text-sm text-red-700 font-medium" role="alert" aria-live="polite">
+                      {errors.size}
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      💡 도움이 필요하시면 상단의 "🔄 다시 시작" 버튼을 눌러 처음부터 입력하실 수 있습니다.
+                    </p>
+                  </motion.div>
                 )}
               </div>
             )}
@@ -1247,7 +1548,11 @@ function SpaceInfoPageContent() {
                     onClick={() => {
                       setSelectedBudget(option.id)
                       setBudgetAmount(undefined)
-                      updateSpaceInfo({ budget: option.id, budgetAmount: undefined })
+                      updateSpaceInfo({ 
+                        housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                        budget: option.id, 
+                        budgetAmount: undefined 
+                      })
                     }}
                     aria-pressed={isSelected}
                     className={`
@@ -1315,11 +1620,17 @@ function SpaceInfoPageContent() {
                     type="button"
                     onClick={() => {
                       setLivingPurpose(option.id)
-                      updateSpaceInfo({ livingPurpose: option.id })
+                      updateSpaceInfo({ 
+                        housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                        livingPurpose: option.id 
+                      })
                       // 입력 안함 선택 시 거주 기간도 초기화
                       if (option.id === '입력안함') {
                         setLivingYears(undefined)
-                        updateSpaceInfo({ livingYears: undefined })
+                        updateSpaceInfo({ 
+                          housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                          livingYears: undefined 
+                        })
                       }
                     }}
                     aria-pressed={isSelected}
@@ -1379,7 +1690,10 @@ function SpaceInfoPageContent() {
                       type="button"
                       onClick={() => {
                         setLivingYears(option.years)
-                        updateSpaceInfo({ livingYears: option.years })
+                        updateSpaceInfo({ 
+                          housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                          livingYears: option.years 
+                        })
                       }}
                       aria-pressed={isSelected}
                       className={`
@@ -1426,22 +1740,37 @@ function SpaceInfoPageContent() {
                 ? ageRanges.filter(r => r !== value)
                 : [...ageRanges, value]
               setAgeRanges(newRanges)
-              updateSpaceInfo({ ageRanges: newRanges })
+              updateSpaceInfo({ 
+                housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                ageRanges: newRanges 
+              })
             }}
           />
 
           {/* Step1 새 구조: 가족 수 선택 - 직접 입력 */}
           <FamilySizeSection
             selectedFamilySize={familySizeRange}
+            initialTotalPeople={totalPeople} // ✅ 실제 인원수 전달 (우선순위 높음)
             onSelect={(value) => {
               setFamilySizeRange(value)
               // familySizeRange와 totalPeople 함께 저장
               updateSpaceInfo({ 
+                housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
                 familySizeRange: value,
                 totalPeople: totalPeople || 0
               })
             }}
             onTotalPeopleChange={(count) => {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/0dabd650-07da-4349-8c05-322963e8e682',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'space-info/page.tsx:1713',message:'가족 수 변경 시작',data:{count,이전totalPeople:totalPeople,이전familySizeRange:familySizeRange},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
+              
+              // ✅ count가 0이거나 유효하지 않으면 무시
+              if (!count || count <= 0 || isNaN(count)) {
+                console.warn('⚠️ [가족 수] 유효하지 않은 값:', count);
+                return;
+              }
+              
               // ✅ totalPeople 직접 업데이트
               setTotalPeople(count)
               
@@ -1449,16 +1778,45 @@ function SpaceInfoPageContent() {
               let range: string | null = null
               if (count === 1) range = '1인'
               else if (count === 2) range = '2인'
-              else if (count >= 3 && count <= 4) range = '3~4인'
+              else if (count === 3) range = '3인'  // ✅ 3명은 정확히 '3인'
+              else if (count === 4) range = '4인'  // ✅ 4명은 정확히 '4인'
               else if (count >= 5) range = '5인 이상'
               
               setFamilySizeRange(range)
               
-              // Store에 함께 저장
+              // Store에 함께 저장 (명시적으로 count와 range 저장)
               updateSpaceInfo({ 
-                totalPeople: count,
-                familySizeRange: range
+                housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                totalPeople: count, // ✅ 명시적으로 count 저장
+                familySizeRange: range // ✅ 명시적으로 range 저장
               })
+              
+              // ✅ 저장 확인 (즉시 확인)
+              setTimeout(() => {
+                const saved = useSpaceInfoStore.getState().spaceInfo;
+                console.log('✅ [가족 수 저장 확인]:', {
+                  입력값: count,
+                  입력range: range,
+                  저장된totalPeople: saved?.totalPeople,
+                  저장된familySizeRange: saved?.familySizeRange,
+                  일치여부: saved?.totalPeople === count && saved?.familySizeRange === range ? '✅ 일치' : '❌ 불일치',
+                });
+                
+                // 불일치 시 재시도
+                if (saved?.totalPeople !== count || saved?.familySizeRange !== range) {
+                  console.error('❌ [가족 수 저장 실패!] 재시도...');
+                  updateSpaceInfo({ 
+                    totalPeople: count,
+                    familySizeRange: range
+                  });
+                }
+              }, 100);
+              
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/0dabd650-07da-4349-8c05-322963e8e682',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'space-info/page.tsx:1734',message:'가족 수 저장 완료',data:{count,range,저장된totalPeople:useSpaceInfoStore.getState().spaceInfo?.totalPeople,저장된familySizeRange:useSpaceInfoStore.getState().spaceInfo?.familySizeRange},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
+              
+              console.log('👥 가족 수 업데이트:', { count, range });
             }}
           />
 
@@ -1470,9 +1828,72 @@ function SpaceInfoPageContent() {
                 ? lifestyleTags.filter(t => t !== tag)
                 : [...lifestyleTags, tag]
               setLifestyleTags(newTags)
-              updateSpaceInfo({ lifestyleTags: newTags })
+              
+              // ✅ lifestyleTags와 specialConditions 동기화
+              const newSpecialConditions = { ...specialConditions }
+              if (tag === 'hasPets') {
+                newSpecialConditions.hasPets = !lifestyleTags.includes(tag)
+                setSpecialConditions(newSpecialConditions)
+              } else if (tag === 'hasElderly') {
+                newSpecialConditions.hasElderly = !lifestyleTags.includes(tag)
+                setSpecialConditions(newSpecialConditions)
+              }
+              
+              updateSpaceInfo({ 
+                housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                lifestyleTags: newTags,
+                specialConditions: newSpecialConditions // ✅ 동기화된 specialConditions 저장
+              })
+              
+              console.log('🏷️ 생활 특성 업데이트:', { 
+                tag, 
+                newTags, 
+                hasPets: newSpecialConditions.hasPets,
+                hasElderly: newSpecialConditions.hasElderly,
+              })
             }}
           />
+
+          {/* Step1 새 구조: 추가 정보 (기타) - 옵션 1 */}
+          <div className="mb-6 md:mb-8 lg:mb-10">
+            <label 
+              htmlFor="additional-notes-input"
+              className="text-xl md:text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2"
+            >
+              <span className="text-xl md:text-2xl" aria-hidden="true">📝</span>
+              추가로 알려주고 싶은 내용이 있으신가요?
+            </label>
+            <p className="text-sm text-gray-600 mb-4 ml-9">
+              (예: 2살 아기가 있어요, 강아지가 있어요 등)
+            </p>
+            
+            <textarea
+              id="additional-notes-input"
+              value={additionalNotes}
+              onChange={(e) => {
+                setAdditionalNotes(e.target.value)
+                updateSpaceInfo({ 
+                  housingType: housingTypeToLabel(spaceInfo.housingType), // ✅ 주거형태 유지
+                  additionalNotes: e.target.value 
+                })
+                console.log('📝 추가 정보 입력:', e.target.value)
+              }}
+              placeholder="자유롭게 입력해주세요..."
+              maxLength={500}
+              rows={4}
+              aria-label="추가 정보 입력"
+              className="w-full p-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-argen-500 focus:ring-4 focus:ring-argen-100 resize-none transition-all"
+            />
+            
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-gray-500">
+                선택사항이에요. 입력하지 않아도 괜찮아요 ✨
+              </p>
+              <p className="text-xs text-gray-500">
+                {additionalNotes?.length || 0} / 500자
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* 다음 단계 예고 카드 */}
@@ -1521,13 +1942,30 @@ function SpaceInfoPageContent() {
           {/* 다음 버튼 */}
           <button
             type="submit"
-            aria-label="공간 선택하기"
-            className="w-full md:w-[70%] px-4 md:px-6 py-3 md:py-4 bg-argen-500 text-white rounded-lg md:rounded-xl hover:bg-argen-600 transition-all duration-200 shadow-lg hover:shadow-xl font-bold relative min-h-[44px] flex items-center justify-center hover:scale-[1.02] active:scale-[0.98] transform hover:brightness-110"
-            style={{ backgroundColor: '#CC807A' }}
+            disabled={isSubmitting}
+            aria-label={isSubmitting ? '처리 중입니다...' : '성향 분석하기'}
+            className={`w-full md:w-[70%] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl transition-all duration-200 shadow-lg font-bold relative min-h-[44px] flex items-center justify-center ${
+              isSubmitting
+                ? 'bg-gray-400 text-white cursor-not-allowed opacity-70'
+                : 'bg-argen-500 text-white hover:bg-argen-600 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transform hover:brightness-110'
+            }`}
+            style={!isSubmitting ? { backgroundColor: '#CC807A' } : {}}
           >
             <div className="flex flex-col items-center">
-              <span className="text-sm md:text-base">공간 선택하기 →</span>
-              <span className="text-xs mt-0.5 md:mt-1 opacity-90">AI가 맞춤 분석을 해드려요</span>
+              {isSubmitting ? (
+                <>
+                  <span className="text-sm md:text-base flex items-center gap-2">
+                    <span className="animate-spin">⏳</span>
+                    처리 중...
+                  </span>
+                  <span className="text-xs mt-0.5 md:mt-1 opacity-90">잠시만 기다려주세요</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm md:text-base">성향 분석하기 →</span>
+                  <span className="text-xs mt-0.5 md:mt-1 opacity-90">AI가 맞춤 분석을 해드려요</span>
+                </>
+              )}
             </div>
           </button>
         </div>

@@ -1,19 +1,23 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// 빌드 타임에는 환경 변수가 없을 수 있으므로, 런타임에 체크
-// 더미 URL과 키로 클라이언트 생성 (실제 사용 시 에러 발생)
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key',
-  {
+// ✅ createClient 함수 export (KPI API에서 사용)
+export function createClient() {
+  const url = supabaseUrl || 'https://placeholder.supabase.co'
+  const key = supabaseAnonKey || 'placeholder-key'
+  
+  return createSupabaseClient(url, key, {
     auth: {
       persistSession: false, // Next.js에서는 세션 유지 필요 없음
     },
-  },
-)
+  })
+}
+
+// 빌드 타임에는 환경 변수가 없을 수 있으므로, 런타임에 체크
+// 더미 URL과 키로 클라이언트 생성 (실제 사용 시 에러 발생)
+export const supabase = createClient()
 
 // 환경 변수 검증 함수 (런타임에 호출)
 export function validateSupabaseConfig() {

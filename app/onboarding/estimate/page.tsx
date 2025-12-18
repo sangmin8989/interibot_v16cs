@@ -1,21 +1,21 @@
 'use client'
 
 import { Suspense, useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import StepIndicator from '@/components/onboarding/StepIndicator'
 import { useSpaceInfoStore } from '@/lib/store/spaceInfoStore'
 import { usePersonalityStore } from '@/lib/store/personalityStore'
 import { useProcessStore } from '@/lib/store/processStore'
 import { useScopeStore } from '@/lib/store/scopeStore'
-import { resetEverything } from '@/lib/utils/resetAllStores'
 import { PROCESS_DEFINITIONS } from '@/constants/process-definitions'
 import { SPACE_NAMES } from '@/constants/spaces'
 
 // 공정별 Before/After 이미지 생성 타입
 type ProcessImageType = '철거' | '주방' | '욕실' | '타일' | '목공' | '전기' | '도배' | '필름'
 
-// ✅ V3 계산기 타입 (API 호출로 변경)
+// ✅ V3 계산기 사용 (새로운 아르젠 단가 시스템)
 import { 
+  calculateFullEstimateV3, 
   type FullEstimateV3,
   type EstimateInputV3,
   type SelectedSpace as V3SelectedSpace,
@@ -107,6 +107,22 @@ const TIER_NAMES: Record<string, string> = {
   premium: '프리미엄',
 }
 
+// ✅ 공간 표시 순서 (상세견적 탭에서 일관된 순서 보장)
+const SPACE_DISPLAY_ORDER = [
+  'common',
+  'living',
+  'kitchen',
+  'subKitchen',
+  'bathroom',
+  'masterBathroom',
+  'commonBathroom',
+  'storage',
+  'window',
+  'lighting',
+  'balcony',
+  'entrance'
+] as const
+
 // 공정 옵션 값 → 한글 이름 변환
 const PROCESS_OPTION_NAMES: Record<string, string> = {
   // 벽면 마감
@@ -142,7 +158,6 @@ const PROCESS_OPTION_NAMES: Record<string, string> = {
 
 function EstimatePageContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { spaceInfo } = useSpaceInfoStore()
   const { analysis: personalityAnalysis } = usePersonalityStore()
   // ✅ 공정별 선택 데이터
@@ -245,17 +260,6 @@ function EstimatePageContent() {
     }
   }
   
-  // ✅ URL 파라미터로 초기화 요청 확인
-  useEffect(() => {
-    const shouldReset = searchParams.get('reset') === 'true'
-    if (shouldReset) {
-      console.log('🔄 URL 파라미터로 초기화 요청 감지')
-      resetEverything()
-      // 초기화 후 URL에서 reset 파라미터 제거
-      router.replace('/onboarding/estimate', { scroll: false })
-    }
-  }, [searchParams, router])
-
   // ✅ Hydration 완료 대기 (zustand persist)
   useEffect(() => {
     // localStorage에서 직접 데이터 확인
@@ -488,11 +492,7 @@ function EstimatePageContent() {
           switch (spaceId) {
             case 'living': return 'living'
             case 'kitchen': return 'kitchen'
-            case 'bathroom': 
-            case 'masterBathroom':    // ✅ 안방욕실 추가
-            case 'commonBathroom':    // ✅ 공용욕실 추가
-            case 'bathroom3':         // ✅ 욕실3 추가
-              return 'bathroom'
+            case 'bathroom': return 'bathroom'
             case 'entrance': return 'entrance'
             case 'balcony': return 'balcony'
             case 'masterBedroom':
@@ -649,55 +649,20 @@ function EstimatePageContent() {
           입력방식: spaceInfo.inputMethod
         })
 
-        // 4등급 모두 계산 (API 병렬 호출)
-        const [basicRes, standardRes, argenRes, premiumRes] = await Promise.all([
-          fetch('/api/estimate/v3', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseInput, grade: 'BASIC' })
-          }),
-          fetch('/api/estimate/v3', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseInput, grade: 'STANDARD' })
-          }),
-          fetch('/api/estimate/v3', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseInput, grade: 'ARGEN' })
-          }),
-          fetch('/api/estimate/v3', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseInput, grade: 'PREMIUM' })
-          })
-        ])
-        
-        // 응답 파싱
-        const [basicData, standardData, argenData, premiumData] = await Promise.all([
-          basicRes.json(),
-          standardRes.json(),
-          argenRes.json(),
-          premiumRes.json()
-        ])
-        
-        // 에러 체크
-        if (!basicData.success || !standardData.success || !argenData.success || !premiumData.success) {
-          throw new Error(basicData.error || standardData.error || argenData.error || premiumData.error || '견적 계산에 실패했습니다.')
-        }
-        
-        const basicEstimate = basicData.data
-        const standardEstimate = standardData.data
-        const argenEstimate = argenData.data
-        const premiumEstimate = premiumData.data
+        // ✅ 4등급 모두 계산 (비동기 함수이므로 await 필요)
+        const basicEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'BASIC' })
+        const standardEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'STANDARD' })
+        const argenEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'ARGEN' })
+        const premiumEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'PREMIUM' })
 
+        // ✅ 안전 체크: summary가 없을 수 있으므로 옵셔널 체이닝 사용
         console.log('✅ V3 견적 결과:', {
           평수: py,
-          basic: formatWon(basicEstimate.summary.grandTotal),
-          standard: formatWon(standardEstimate.summary.grandTotal),
-          argen: formatWon(argenEstimate.summary.grandTotal),
-          premium: formatWon(premiumEstimate.summary.grandTotal),
-          평당단가_아르젠: `${Math.round(argenEstimate.summary.grandTotal / py / 10000)}만원`
+          basic: formatWon(basicEstimate?.summary?.grandTotal || 0),
+          standard: formatWon(standardEstimate?.summary?.grandTotal || 0),
+          argen: formatWon(argenEstimate?.summary?.grandTotal || 0),
+          premium: formatWon(premiumEstimate?.summary?.grandTotal || 0),
+          평당단가_아르젠: `${Math.round((argenEstimate?.summary?.grandTotal || 0) / py / 10000)}만원`
         })
 
         setEstimates({
@@ -737,69 +702,14 @@ function EstimatePageContent() {
       <main className="flex min-h-screen flex-col items-center p-4 md:p-6 lg:p-8 pt-12 md:pt-16 bg-gradient-to-br from-white via-argen-50/30 to-pink-50/40 animate-fadeIn">
         <div className="w-full max-w-[1000px]">
           {/* 헤더 */}
-          <div className="text-center mb-6 relative">
+          <div className="text-center mb-6">
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
               🏠 최종 견적서
             </h1>
             <p className="text-sm md:text-base text-gray-600 mt-2">
               2025년 아르젠 표준 단가 기준 | 4등급 체계
             </p>
-            {/* ✅ 새로 시작하기 버튼 */}
-            <button
-              type="button"
-              onClick={() => {
-                if (confirm('모든 입력 정보를 초기화하고 처음부터 다시 시작하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
-                  resetEverything()
-                  router.push('/space-info')
-                }
-              }}
-              className="absolute top-0 right-0 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg border border-gray-300 transition-colors"
-            >
-              🔄 새로 시작하기
-            </button>
           </div>
-
-          {/* ✅ 견적 정확도 표시 (핵심 가치!) */}
-          {!isCalculating && estimates && (
-            <div className="bg-gradient-to-r from-emerald-50 via-green-50 to-teal-50 rounded-2xl shadow-lg p-5 md:p-6 mb-6 border-2 border-emerald-200">
-              <div className="flex items-center justify-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center shadow-md">
-                  <span className="text-2xl">✨</span>
-                </div>
-                <div className="text-center">
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-                    이 견적은 <span className="text-emerald-600">95%</span> 정확도입니다
-                  </h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    실제 시공과의 오차 범위: ±5%
-                  </p>
-                </div>
-              </div>
-              <div className="bg-white/60 rounded-xl p-4 border border-emerald-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1">기준 단가</p>
-                    <p className="text-sm font-bold text-emerald-700">2025년 아르젠 표준</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1">계산 방식</p>
-                    <p className="text-sm font-bold text-emerald-700">실제 시공 데이터 기반</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1">신뢰도</p>
-                    <p className="text-sm font-bold text-emerald-700">높음 (30평 5,960만원 기준)</p>
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-emerald-200">
-                  <p className="text-xs text-gray-600 leading-relaxed">
-                    💡 <strong>참고사항:</strong> 이 견적은 고객님의 입력 정보를 바탕으로 계산된 예상 금액입니다. 
-                    실제 시공 시 자재 선택, 현장 상황, 추가 공사 등에 따라 금액이 달라질 수 있습니다. 
-                    정확한 견적은 현장 방문 후 상담을 통해 확인해주세요.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ========================================== */}
           {/* ✅ 고객 선택 요약 (공간 + 공정 + 옵션) */}
@@ -1068,11 +978,8 @@ function EstimatePageContent() {
               
               // ✅ 주방이 선택되었는지 확인
               const hasKitchen = selectedSpaceIds.includes('kitchen')
-              // ✅ 욕실이 선택되었는지 확인 (모든 욕실 타입 체크)
+              // ✅ 욕실이 선택되었는지 확인
               const hasBathroom = selectedSpaceIds.includes('bathroom') || 
-                                 selectedSpaceIds.includes('masterBathroom') ||
-                                 selectedSpaceIds.includes('commonBathroom') ||
-                                 selectedSpaceIds.includes('bathroom3') ||
                                  selectedSpaceIds.some(id => id.includes('bathroom') || id.includes('욕실'))
               
               // ✅ 선택한 공간에 해당하는 옵션만 필터링
@@ -1235,14 +1142,14 @@ function EstimatePageContent() {
                       {/* 금액 */}
                       <div className="mb-2">
                         <p className={`text-xl md:text-2xl font-bold ${isSelected ? 'text-argen-600' : 'text-gray-900'}`}>
-                          {formatPrice(estimate.summary.grandTotal)}
+                          {formatPrice(estimate?.summary?.grandTotal || 0)}
                           <span className="text-sm font-normal text-gray-500 ml-1">만원</span>
                         </p>
                       </div>
 
-                      {/* 평당 단가 */}
+                      {/* 평당 단가 - ✅ 안전 체크 추가 */}
                       <p className="text-xs text-gray-500">
-                        평당 약 {formatPrice(estimate.summary.pricePerPy)}만원
+                        평당 약 {formatPrice(estimate?.summary?.pricePerPy || 0)}만원
                       </p>
 
                       {/* 선택 표시 */}
@@ -1307,24 +1214,24 @@ function EstimatePageContent() {
                           <div className="space-y-3">
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600">자재비</span>
-                              <span className="font-medium">{formatWon(currentEstimate.summary.materialTotal)}</span>
+                              <span className="font-medium">{formatWon(currentEstimate?.summary?.materialTotal || 0)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600">노무비</span>
-                              <span className="font-medium">{formatWon(currentEstimate.summary.laborTotal)}</span>
+                              <span className="font-medium">{formatWon(currentEstimate?.summary?.laborTotal || 0)}</span>
                             </div>
                             <div className="border-t border-gray-300 pt-3 flex justify-between items-center">
                               <span className="text-gray-600">순공사비</span>
-                              <span className="font-medium">{formatWon(currentEstimate.summary.netTotal)}</span>
+                              <span className="font-medium">{formatWon(currentEstimate?.summary?.netTotal || 0)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600">부가세 (10%)</span>
-                              <span className="font-medium">{formatWon(currentEstimate.summary.vat)}</span>
+                              <span className="font-medium">{formatWon(currentEstimate?.summary?.vat || 0)}</span>
                             </div>
                             <div className="border-t-2 border-purple-300 pt-3 flex justify-between items-center">
                               <span className="text-lg font-bold text-gray-900">총 견적</span>
                               <span className="text-xl font-bold text-argen-600">
-                                {formatWon(currentEstimate.summary.grandTotal)}
+                                {formatWon(currentEstimate?.summary?.grandTotal || 0)}
                               </span>
                             </div>
                           </div>
@@ -1336,11 +1243,11 @@ function EstimatePageContent() {
                             <span className="text-xl">📅</span>
                             <span className="font-bold text-gray-900">예상 공사 기간</span>
                           </div>
-                          <p className="text-blue-700 font-medium">{currentEstimate.duration.typical}</p>
+                          <p className="text-blue-700 font-medium">{currentEstimate?.duration?.typical || '-'}</p>
                         </div>
 
                         {/* 아르젠 특장점 */}
-                        {currentEstimate.argenFeatures && (
+                        {currentEstimate?.argenFeatures && (
                           <div className="bg-argen-50 rounded-xl p-4">
                             <h4 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
                               <span>🏆</span> 아르젠 등급 특장점
@@ -1375,59 +1282,123 @@ function EstimatePageContent() {
                     ) : (
                       /* 공정별 상세 - 선택된 공간만 표시 */
                       <div className="space-y-4">
-                        {Object.entries(currentEstimate.spaces).map(([key, space]) => {
-                          // ✅ 공간이 없거나, 항목이 없거나, 소계가 0이면 표시하지 않음
-                          if (!space) return null
-                          if (space.items.length === 0) return null
-                          if (space.subtotal === 0 && key !== 'common') return null
-                          // "(미선택)" 공간은 표시하지 않음
-                          if (space.spaceName.includes('미선택')) return null
-                          
-                          return (
-                            <div key={key} className="border border-gray-200 rounded-xl overflow-hidden">
-                              <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
-                                <span className="font-bold text-gray-900">{space.spaceName}</span>
-                                <span className="font-bold text-argen-600">{formatWon(space.subtotal)}</span>
-                              </div>
-                              <div className="p-4">
-                                <table className="w-full text-sm">
-                                  <thead>
-                                    <tr className="text-gray-500 text-xs">
-                                      <th className="text-left pb-2">항목</th>
-                                      <th className="text-right pb-2">자재비</th>
-                                      <th className="text-right pb-2">노무비</th>
-                                      <th className="text-right pb-2">합계</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {space.items.map((item, i) => (
-                                      <tr key={i} className="border-t border-gray-100">
-                                        <td className="py-2">
-                                          <div className="font-medium text-gray-900">{item.name}</div>
-                                          {item.quantity && (
-                                            <div className="text-xs text-gray-500">{item.quantity}</div>
-                                          )}
-                                          {item.note && (
-                                            <div className="text-xs text-argen-500">{item.note}</div>
-                                          )}
-                                        </td>
-                                        <td className="py-2 text-right text-gray-600">
-                                          {item.materialCost > 0 ? formatWon(item.materialCost) : '-'}
-                                        </td>
-                                        <td className="py-2 text-right text-gray-600">
-                                          {item.laborCost > 0 ? formatWon(item.laborCost) : '-'}
-                                        </td>
-                                        <td className="py-2 text-right font-medium text-gray-900">
-                                          {formatWon(item.totalCost)}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
+                        {/* ✅ 디버깅 정보 (개발 모드) */}
+                        {process.env.NODE_ENV === 'development' && (
+                          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
+                            <p className="font-bold mb-2">🔍 상세견적 디버깅 정보</p>
+                            <div className="space-y-1">
+                              {Object.entries(currentEstimate?.spaces || {}).map(([key, space]) => {
+                                const willDisplay = space && 
+                                                  space.items && 
+                                                  space.items.length > 0 && 
+                                                  (space.subtotal > 0 || key === 'common') &&
+                                                  !space.spaceName?.includes('(미선택)');
+                                return (
+                                  <div key={key} className={`p-2 rounded ${willDisplay ? 'bg-green-50' : 'bg-red-50'}`}>
+                                    <span className="font-medium">{key}:</span>{' '}
+                                    <span>공간명={space?.spaceName || '없음'}, </span>
+                                    <span>항목수={space?.items?.length || 0}, </span>
+                                    <span>소계={formatWon(space?.subtotal || 0)}, </span>
+                                    <span className={willDisplay ? 'text-green-700 font-bold' : 'text-red-700'}>
+                                      {willDisplay ? '✅ 표시됨' : '❌ 제외됨'}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          )
-                        })}
+                          </div>
+                        )}
+                        
+                        {/* ✅ 공간 표시 순서 정의 (일관된 순서 보장) */}
+                        {(() => {
+                          return SPACE_DISPLAY_ORDER
+                            .filter(key => {
+                              const space = currentEstimate?.spaces[key as keyof typeof currentEstimate.spaces];
+                              // ✅ 개선된 필터링 로직
+                              if (!space) return false;
+                              if (space.spaceName && space.spaceName.includes('(미선택)')) return false;
+                              if (!space.items || space.items.length === 0) {
+                                // common 공간은 항목이 없어도 표시하지 않음 (철거/보양이 없을 수 있음)
+                                return false;
+                              }
+                              // common은 소계가 0이어도 표시 (항목이 있으면)
+                              if (space.subtotal === 0 && key !== 'common') return false;
+                              return true;
+                            })
+                            .map(key => {
+                              const space = currentEstimate?.spaces[key as keyof typeof currentEstimate.spaces];
+                              if (!space) return null;
+                              
+                              return (
+                                <div key={key} className="border border-gray-200 rounded-xl overflow-hidden">
+                                  <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
+                                    <span className="font-bold text-gray-900">{space.spaceName}</span>
+                                    <span className="font-bold text-argen-600">{formatWon(space.subtotal)}</span>
+                                  </div>
+                                  <div className="p-4">
+                                    <table className="w-full text-sm">
+                                      <thead>
+                                        <tr className="text-gray-500 text-xs">
+                                          <th className="text-left pb-2">항목</th>
+                                          <th className="text-right pb-2">자재비</th>
+                                          <th className="text-right pb-2">노무비</th>
+                                          <th className="text-right pb-2">합계</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {space.items.map((item, i) => (
+                                          <tr key={i} className="border-t border-gray-100">
+                                            <td className="py-2">
+                                              <div className="font-medium text-gray-900">{item.name}</div>
+                                              {item.quantity && (
+                                                <div className="text-xs text-gray-500">{item.quantity}</div>
+                                              )}
+                                              {item.note && (
+                                                <div className="text-xs text-argen-500">{item.note}</div>
+                                              )}
+                                            </td>
+                                            <td className="py-2 text-right text-gray-600">
+                                              {item.materialCost > 0 ? formatWon(item.materialCost) : '-'}
+                                            </td>
+                                            <td className="py-2 text-right text-gray-600">
+                                              {item.laborCost > 0 ? formatWon(item.laborCost) : '-'}
+                                            </td>
+                                            <td className="py-2 text-right font-medium text-gray-900">
+                                              {formatWon(item.totalCost)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              );
+                            });
+                        })()}
+                        
+                        {/* ✅ 표시된 공간이 없을 때 안내 */}
+                        {(() => {
+                          const hasAnySpace = (SPACE_DISPLAY_ORDER as readonly string[]).some(key => {
+                            const space = currentEstimate?.spaces[key as keyof typeof currentEstimate.spaces];
+                            return space && 
+                                   space.items && 
+                                   space.items.length > 0 && 
+                                   (space.subtotal > 0 || key === 'common') &&
+                                   !space.spaceName?.includes('(미선택)');
+                          });
+                          
+                          if (!hasAnySpace) {
+                            return (
+                              <div className="p-6 text-center bg-gray-50 rounded-xl border border-gray-200">
+                                <p className="text-gray-600 mb-2">⚠️ 표시할 상세 견적이 없습니다</p>
+                                <p className="text-sm text-gray-500">
+                                  선택한 공간과 공정에 대한 견적이 계산되지 않았습니다.
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     )}
                   </div>

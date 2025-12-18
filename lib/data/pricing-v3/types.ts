@@ -380,12 +380,18 @@ export const WALLPAPER_LABOR: Record<SizeRange, WallpaperLabor> = {
 // ============================================================
 
 /** 숫자 포맷 (천단위 콤마) */
-export function formatPrice(price: number): string {
+export function formatPrice(price: number | undefined | null): string {
+  if (price === undefined || price === null || isNaN(price)) {
+    return '0';
+  }
   return price.toLocaleString('ko-KR');
 }
 
 /** 원 단위로 포맷 */
-export function formatWon(price: number): string {
+export function formatWon(price: number | undefined | null): string {
+  if (price === undefined || price === null || isNaN(price)) {
+    return '0원';
+  }
   return `${formatPrice(price)}원`;
 }
 

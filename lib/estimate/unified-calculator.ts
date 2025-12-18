@@ -77,61 +77,7 @@ function selectProcesses(input: EstimateInput): string[] {
   console.log('🔍 input.selectedProcesses:', input.selectedProcesses)
   console.log('🔍 input.selectedProcesses?.length:', input.selectedProcesses?.length)
   console.log('🔍 input.selectedSpaces:', input.selectedSpaces)
-  console.log('🔍 input.tierSelections:', input.tierSelections)
-  
-  // tierSelections가 있으면 이를 기반으로 공정 필터링
-  if (input.tierSelections) {
-    const processIdToName: Record<string, string> = {
-      'demolition': '철거',
-      'finish': '도장', // 마감 → 도장/도배로 매핑
-      'electric': '전기',
-      'kitchen': '주방',
-      'bathroom': '욕실',
-      'door_window': '창호',
-      'furniture': '목공',
-      'film': '필름',
-      'balcony': '기타', // 발코니 → 기타로 매핑
-      'entrance': '기타', // 현관 → 기타로 매핑
-    }
-    
-    const enabledProcesses: string[] = []
-    
-    Object.entries(input.tierSelections).forEach(([processId, selection]) => {
-      if (selection.enabled) {
-        const processName = processIdToName[processId]
-        if (processName && !enabledProcesses.includes(processName)) {
-          enabledProcesses.push(processName)
-          console.log(`✅ tierSelections 활성화 공정: ${processId} → ${processName}`)
-        }
-        
-        // finish 공정은 도장+도배+타일 모두 추가
-        if (processId === 'finish') {
-          if (!enabledProcesses.includes('도배')) {
-            enabledProcesses.push('도배')
-            console.log(`✅ tierSelections 활성화 공정: finish → 도배`)
-          }
-          if (!enabledProcesses.includes('타일')) {
-            enabledProcesses.push('타일')
-            console.log(`✅ tierSelections 활성화 공정: finish → 타일`)
-          }
-        }
-      } else {
-        console.log(`⏭️ tierSelections 비활성화 공정: ${processId}`)
-      }
-    })
-    
-    // 공간별 필터링 적용
-    if (input.selectedSpaces && input.selectedSpaces.length > 0 && enabledProcesses.length > 0) {
-      const filteredProcesses = enabledProcesses.filter(processName => 
-        shouldIncludeProcess(processName, input.selectedSpaces!)
-      )
-      console.log('✅ tierSelections 기반 + 공간 필터링된 공정:', filteredProcesses)
-      return filteredProcesses
-    }
-    
-    console.log('✅ tierSelections 기반 최종 공정:', enabledProcesses)
-    return enabledProcesses
-  }
+  // ✅ 헌법 적용: tierSelections 제거 - processSelections만 SSOT로 사용
   
   // selectedProcesses가 있으면 무조건 그것만 사용
   if (input.selectedProcesses && input.selectedProcesses.length > 0) {

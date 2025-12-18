@@ -10,6 +10,7 @@
 import { PREFERENCE_CATEGORIES, PreferenceCategory } from './questions/types';
 import { AnalysisMode, AnalysisRequest, AnalysisResult, PreferenceScores, VibeProfile } from './types';
 import { calculateScoresFromAnswers } from './answer-mappings';
+import { getTraitScoresFromAnswers } from '@/lib/db/adapters/personality-adapter';
 
 // 점수 범위 제한 함수
 const clamp = (value: number, min = 1, max = 10) => Math.min(max, Math.max(min, value));
@@ -112,12 +113,14 @@ const calculateHealthScoreFromSpaceInfo = (spaceInfo: AnalysisRequest['spaceInfo
  * 성향 점수 계산 (answers + spaceInfo 반영)
  * 
  * [개선됨] 기존 hashToScore 대신 answer-mappings.ts의 매핑 테이블 사용
+ * [V4] DB 기반 매핑 지원 (USE_DB_PERSONALITY 환경변수로 활성화)
  */
-export const buildPreferenceScores = (
+export const buildPreferenceScores = async (
   answers: Record<string, unknown>,
-  spaceInfo?: AnalysisRequest['spaceInfo']
-): PreferenceScores => {
-  // 1. 답변 기반 점수 계산 (새로운 매핑 테이블 사용)
+  spaceInfo?: AnalysisRequest['spaceInfo'],
+  analysisMode: AnalysisMode = 'standard'
+): Promise<PreferenceScores> => {
+  // 1. 답변 기반 점수 계산 (DB 또는 파일 기반)
   let scores: PreferenceScores;
   
   if (answers && typeof answers === 'object' && Object.keys(answers).length > 0) {
@@ -134,8 +137,32 @@ export const buildPreferenceScores = (
         return acc;
       }, {} as PreferenceScores);
     } else {
-      // 답변 형태면 매핑 테이블로 점수 계산
-      scores = calculateScoresFromAnswers(answers) as PreferenceScores;
+      // ✅ DB 기반 매핑 시도 (Feature Flag)
+      const useDB = process.env.USE_DB_PERSONALITY === 'true'
+      
+      if (useDB) {
+        try {
+          // DB에서 답변-점수 매핑 조회
+          const dbScores = await getTraitScoresFromAnswers(
+            answers as Record<string, string>,
+            analysisMode
+          )
+          
+          // DB에서 조회된 점수가 있으면 사용
+          if (Object.values(dbScores).some(score => score !== 5)) {
+            scores = dbScores
+          } else {
+            // DB에 데이터가 없으면 파일 기반 fallback
+            scores = calculateScoresFromAnswers(answers) as PreferenceScores
+          }
+        } catch (error) {
+          console.error('❌ DB 성향 점수 조회 실패, 파일로 fallback:', error)
+          scores = calculateScoresFromAnswers(answers) as PreferenceScores
+        }
+      } else {
+        // 파일 기반 매핑 사용
+        scores = calculateScoresFromAnswers(answers) as PreferenceScores
+      }
     }
   } else {
     // 답변이 없으면 기본값 5점
@@ -599,7 +626,7 @@ const normalizeSelectedAreas = (raw: unknown): string[] => {
   return [];
 };
 
-export const buildAnalysisResult = (payload: AnalysisRequest): AnalysisResult => {
+export const buildAnalysisResult = async (payload: AnalysisRequest): Promise<AnalysisResult> => {
   const {
     mode,
     preferences,
@@ -613,8 +640,8 @@ export const buildAnalysisResult = (payload: AnalysisRequest): AnalysisResult =>
 
   const normalizedAreas = normalizeSelectedAreas(selectedAreas);
   
-  // spaceInfo를 buildPreferenceScores에 전달
-  const preferenceScores = buildPreferenceScores(preferences, spaceInfo);
+  // spaceInfo를 buildPreferenceScores에 전달 (비동기)
+  const preferenceScores = await buildPreferenceScores(preferences, spaceInfo, mode);
   
   const vibeProfile = deriveVibeProfile(mode, preferences, preferenceScores);
   const analysisId = `analysis_${Date.now()}`;

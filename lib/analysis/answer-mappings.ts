@@ -1272,6 +1272,238 @@ const vibeMappings: AnswerMapping[] = [
 ];
 
 // ========================================
+// 판단 축 질문 매핑 (6문항)
+// ========================================
+
+const judgmentAxesMappings: AnswerMapping[] = [
+  // Q1: 리스크 회피도 측정
+  {
+    questionId: 'judgment_irreversible_priority',
+    answerValue: 'strongly_agree',
+    impacts: [
+      { category: 'discomfort_factors', score: 9 }, // 리스크 회피도 높음
+      { category: 'health_factors', score: 8 },
+    ],
+  },
+  {
+    questionId: 'judgment_irreversible_priority',
+    answerValue: 'agree',
+    impacts: [
+      { category: 'discomfort_factors', score: 7 },
+      { category: 'health_factors', score: 6 },
+    ],
+  },
+  {
+    questionId: 'judgment_irreversible_priority',
+    answerValue: 'neutral',
+    impacts: [
+      { category: 'discomfort_factors', score: 5 },
+    ],
+  },
+  {
+    questionId: 'judgment_irreversible_priority',
+    answerValue: 'disagree',
+    impacts: [
+      { category: 'discomfort_factors', score: 3 }, // 리스크 회피도 낮음
+    ],
+  },
+  {
+    questionId: 'judgment_irreversible_priority',
+    answerValue: 'ai_choice',
+    impacts: [
+      { category: 'discomfort_factors', score: 5 },
+    ],
+  },
+
+  // Q2: 리스크 회피도 + 결정 지연 성향
+  {
+    questionId: 'judgment_construction_dislike',
+    answerValue: 'additional_cost',
+    impacts: [
+      { category: 'budget_sense', score: 9 }, // 비용 민감도 높음
+    ],
+  },
+  {
+    questionId: 'judgment_construction_dislike',
+    answerValue: 'defect',
+    impacts: [
+      { category: 'discomfort_factors', score: 9 }, // 리스크 회피도 높음
+      { category: 'health_factors', score: 8 },
+    ],
+  },
+  {
+    questionId: 'judgment_construction_dislike',
+    answerValue: 'delay',
+    impacts: [
+      { category: 'discomfort_factors', score: 7 },
+      { category: 'organization_habit', score: 6 }, // 결정 지연 성향
+    ],
+  },
+  {
+    questionId: 'judgment_construction_dislike',
+    answerValue: 'decision_stress',
+    impacts: [
+      { category: 'organization_habit', score: 3 }, // 결정 지연 성향 높음 (organization_habit 낮음 = 결정 지연)
+    ],
+  },
+  {
+    questionId: 'judgment_construction_dislike',
+    answerValue: 'ai_choice',
+    impacts: [
+      { category: 'organization_habit', score: 5 },
+    ],
+  },
+
+  // Q3: 통제 욕구
+  {
+    questionId: 'judgment_choice_preference',
+    answerValue: 'ai_recommend',
+    impacts: [
+      { category: 'space_sense', score: 3 }, // 통제 욕구 낮음
+    ],
+  },
+  {
+    questionId: 'judgment_choice_preference',
+    answerValue: 'compare_2_3',
+    impacts: [
+      { category: 'space_sense', score: 6 }, // 통제 욕구 중간
+    ],
+  },
+  {
+    questionId: 'judgment_choice_preference',
+    answerValue: 'detail_select',
+    impacts: [
+      { category: 'space_sense', score: 9 }, // 통제 욕구 높음
+    ],
+  },
+  {
+    questionId: 'judgment_choice_preference',
+    answerValue: 'ai_choice',
+    impacts: [
+      { category: 'space_sense', score: 5 },
+    ],
+  },
+
+  // Q4: 결정 지연 성향
+  {
+    questionId: 'judgment_decision_delay',
+    answerValue: 'lack_info',
+    impacts: [
+      { category: 'organization_habit', score: 4 }, // 결정 지연 성향 높음
+    ],
+  },
+  {
+    questionId: 'judgment_decision_delay',
+    answerValue: 'fear_loss',
+    impacts: [
+      { category: 'budget_sense', score: 8 }, // 비용 민감도 높음
+      { category: 'organization_habit', score: 4 }, // 결정 지연 성향
+    ],
+  },
+  {
+    questionId: 'judgment_decision_delay',
+    answerValue: 'too_many',
+    impacts: [
+      { category: 'organization_habit', score: 3 }, // 결정 지연 성향 매우 높음
+    ],
+  },
+  {
+    questionId: 'judgment_decision_delay',
+    answerValue: 'family_opinion',
+    impacts: [
+      { category: 'family_composition', score: 8 },
+      { category: 'organization_habit', score: 5 },
+    ],
+  },
+  {
+    questionId: 'judgment_decision_delay',
+    answerValue: 'ai_choice',
+    impacts: [
+      { category: 'organization_habit', score: 5 },
+    ],
+  },
+
+  // Q5: 비용 민감도 + 리스크 회피도
+  {
+    questionId: 'judgment_inconvenience_preference',
+    answerValue: 'more_money',
+    impacts: [
+      { category: 'budget_sense', score: 9 }, // 비용 민감도 높음
+    ],
+  },
+  {
+    questionId: 'judgment_inconvenience_preference',
+    answerValue: 'redo_construction',
+    impacts: [
+      { category: 'discomfort_factors', score: 9 }, // 리스크 회피도 높음
+      { category: 'health_factors', score: 8 },
+    ],
+  },
+  {
+    questionId: 'judgment_inconvenience_preference',
+    answerValue: 'both',
+    impacts: [
+      { category: 'budget_sense', score: 8 },
+      { category: 'discomfort_factors', score: 8 },
+    ],
+  },
+  {
+    questionId: 'judgment_inconvenience_preference',
+    answerValue: 'neither',
+    impacts: [
+      { category: 'budget_sense', score: 4 }, // 비용 민감도 낮음
+      { category: 'discomfort_factors', score: 4 }, // 리스크 회피도 낮음
+    ],
+  },
+  {
+    questionId: 'judgment_inconvenience_preference',
+    answerValue: 'ai_choice',
+    impacts: [
+      { category: 'budget_sense', score: 5 },
+      { category: 'discomfort_factors', score: 5 },
+    ],
+  },
+
+  // Q6: 비용 민감도
+  {
+    questionId: 'judgment_maintenance_tradeoff',
+    answerValue: 'strongly_agree',
+    impacts: [
+      { category: 'budget_sense', score: 3 }, // 비용 민감도 낮음 (예쁨 우선)
+    ],
+  },
+  {
+    questionId: 'judgment_maintenance_tradeoff',
+    answerValue: 'agree',
+    impacts: [
+      { category: 'budget_sense', score: 4 },
+    ],
+  },
+  {
+    questionId: 'judgment_maintenance_tradeoff',
+    answerValue: 'neutral',
+    impacts: [
+      { category: 'budget_sense', score: 5 },
+    ],
+  },
+  {
+    questionId: 'judgment_maintenance_tradeoff',
+    answerValue: 'disagree',
+    impacts: [
+      { category: 'budget_sense', score: 8 }, // 비용 민감도 높음 (관리 편의 우선)
+      { category: 'cleaning_preference', score: 8 },
+    ],
+  },
+  {
+    questionId: 'judgment_maintenance_tradeoff',
+    answerValue: 'ai_choice',
+    impacts: [
+      { category: 'budget_sense', score: 5 },
+    ],
+  },
+];
+
+// ========================================
 // 전체 매핑 테이블 합치기
 // ========================================
 
@@ -1280,6 +1512,7 @@ export const ALL_ANSWER_MAPPINGS: AnswerMapping[] = [
   ...standardMappings,
   ...deepMappings,
   ...vibeMappings,
+  ...judgmentAxesMappings, // 판단 축 질문 매핑 추가
 ];
 
 // ========================================
@@ -1384,7 +1617,27 @@ export function calculateScoresFromAnswers(
 
 // 통계: 총 매핑 수
 export const TOTAL_MAPPINGS = ALL_ANSWER_MAPPINGS.length;
-// Quick: 24개, Standard: 36개, Deep: 48개, Vibe: 42개 = 총 150개
+// Quick: 24개, Standard: 36개, Deep: 48개, Vibe: 42개, JudgmentAxes: 30개 = 총 180개
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

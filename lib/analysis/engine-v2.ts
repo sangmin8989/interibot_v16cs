@@ -809,6 +809,9 @@ const buildSummaryV2 = (
 
   // 가족 구성 언급
   if (spaceInfo?.familySizeRange) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/0dabd650-07da-4349-8c05-322963e8e682',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'engine-v2.ts:811',message:'familySizeRange 사용',data:{familySizeRange:spaceInfo.familySizeRange,totalPeople:spaceInfo.totalPeople},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
     summary += `${spaceInfo.familySizeRange} 가구로서, `
   }
 

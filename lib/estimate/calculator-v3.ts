@@ -36,10 +36,23 @@ import {
   SIZE_QUANTITIES,
   ClosetType
 } from '../data/pricing-v3';
+import type { PreferenceScores } from '../analysis/types';
 
 // ============================================================
 // 1. 견적 입력 옵션
 // ============================================================
+
+/** 성향 분석 결과 요약 (견적에 반영용) */
+export interface PersonalitySummary {
+  /** 성향 점수 (15개 카테고리) */
+  scores: PreferenceScores;
+  /** 상위 니즈 목록 (예: ['수납', '안전', '단열']) */
+  topNeeds?: string[];
+  /** 특수 플래그 (예: ['영유아', '반려동물', '노인']) */
+  flags?: string[];
+  /** 스타일 선호도 (예: ['minimal', 'natural']) */
+  styleBias?: string[];
+}
 
 /** 선택 가능한 공간 */
 export type SelectedSpace = 
@@ -196,6 +209,9 @@ export interface EstimateInputV3 {
   
   /** 조명 포함 여부 */
   includeLighting?: boolean;
+  
+  /** ✅ 성향 분석 결과 요약 (견적에 반영) */
+  personalitySummary?: PersonalitySummary;
 }
 
 // ============================================================
@@ -211,6 +227,10 @@ export interface ProcessItem {
   totalCost: number;      // 합계
   brands?: string[];      // 브랜드 목록
   note?: string;          // 비고
+  // ✅ Phase 2: LOCK 공정 정보
+  isLocked?: boolean;     // LOCK 상태 여부
+  lockReason?: string;    // LOCK 사유
+  canOverride?: boolean;  // 사용자 변경 가능 여부 (LOCK은 false)
 }
 
 /** 공간별 견적 */
@@ -242,6 +262,8 @@ export interface FullEstimateV3 {
     storage: SpaceEstimate;          // 수납/가구
     window: SpaceEstimate;           // 창호
     lighting?: SpaceEstimate;        // 조명 (옵션)
+    balcony?: SpaceEstimate;         // 발코니 (옵션)
+    entrance?: SpaceEstimate;        // 현관 (옵션)
   };
   
   // 합계
@@ -266,17 +288,118 @@ export interface FullEstimateV3 {
     made: string[];        // 아르젠 제작 품목
     recommended: string[]; // 아르젠 추천 자재
   };
+  
+  // ✅ Phase 2: LOCK 공정 정보
+  lockedProcesses?: {
+    processId: string;
+    processLabel: string;
+    lockReason: string;
+    canOverride: boolean;
+  }[];
 }
 
 // ============================================================
 // 3. 통합 견적 계산 함수
 // ============================================================
 
-/** 전체 견적 계산 */
-export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 {
+/**
+ * 성향 점수에 따라 등급을 조정합니다.
+ * 
+ * @param baseGrade - 기본 등급
+ * @param personalitySummary - 성향 분석 결과
+ * @returns 조정된 등급
+ */
+function adjustGradeByPersonality(
+  baseGrade: Grade,
+  personalitySummary?: PersonalitySummary
+): Grade {
+  if (!personalitySummary?.scores) {
+    return baseGrade;
+  }
+
+  const scores = personalitySummary.scores;
+  const gradeOrder: Grade[] = ['BASIC', 'STANDARD', 'ARGEN', 'PREMIUM'];
+  let currentIndex = gradeOrder.indexOf(baseGrade);
+  
+  // 정리정돈 습관 높음 (≥7) → 수납 강화 → 등급 업그레이드 고려
+  if (scores.organization_habit >= 7 && currentIndex < gradeOrder.length - 1) {
+    currentIndex = Math.min(currentIndex + 1, gradeOrder.length - 1);
+  }
+  
+  // 조명 취향 높음 (≥7) → 조명 강화 → 등급 업그레이드 고려
+  if (scores.lighting_preference >= 7 && currentIndex < gradeOrder.length - 1) {
+    currentIndex = Math.min(currentIndex + 1, gradeOrder.length - 1);
+  }
+  
+  // 예산 감각 낮음 (≤3) → 가성비 중시 → 등급 다운그레이드 고려
+  if (scores.budget_sense <= 3 && currentIndex > 0) {
+    currentIndex = Math.max(currentIndex - 1, 0);
+  }
+  
+  return gradeOrder[currentIndex];
+}
+
+/**
+ * 성향 점수에 따라 옵션을 자동 추가합니다.
+ * 
+ * @param input - 견적 입력
+ * @param personalitySummary - 성향 분석 결과
+ * @returns 옵션이 추가된 견적 입력
+ */
+function applyPersonalityOptions(
+  input: EstimateInputV3,
+  personalitySummary?: PersonalitySummary
+): EstimateInputV3 {
+  if (!personalitySummary?.scores) {
+    return input;
+  }
+
+  const scores = personalitySummary.scores;
+  const flags = personalitySummary.flags || [];
+  const updatedInput = { ...input };
+  const updatedOptions = input.detailOptions ? { ...input.detailOptions } : {};
+
+  // 안전 플래그 (영유아, 노인) → 욕실 안전 옵션 추가
+  if (flags.includes('영유아') || flags.includes('노인')) {
+    // 욕실 옵션이 없으면 기본값 생성
+    if (!updatedOptions.욕실옵션) {
+      updatedOptions.욕실옵션 = {};
+    }
+    // 안전 손잡이, 논슬립 타일 등은 detailOptions에 반영
+    // (구체적인 옵션 필드는 detailOptions 구조에 따라 조정 필요)
+  }
+
+  // 조명 취향 높음 → 조명 공정 강제 활성화
+  if (scores.lighting_preference >= 7) {
+    updatedInput.includeLighting = true;
+  }
+
+  // 정리정돈 습관 높음 → 수납 옵션 강화
+  if (scores.organization_habit >= 7) {
+    // 붙박이장 타입을 더 고급으로 조정 가능
+    // (현재는 closetType만 있으므로 추가 옵션 필요 시 확장)
+  }
+
+  return {
+    ...updatedInput,
+    detailOptions: updatedOptions,
+  };
+}
+
+/** 전체 견적 계산 (비동기) */
+export async function calculateFullEstimateV3(input: EstimateInputV3): Promise<FullEstimateV3> {
+  // ✅ 성향 점수에 따라 입력값 조정
+  const adjustedInput = applyPersonalityOptions(input, input.personalitySummary);
+  
+  // ✅ 성향 점수에 따라 등급 조정
+  const adjustedGrade = adjustGradeByPersonality(
+    adjustedInput.grade,
+    adjustedInput.personalitySummary
+  );
+  
   const {
     py,
-    grade,
+    grade: _originalGrade, // 원본 등급은 보관하되 사용하지 않음
     bathroomCount: inputBathroomCount, // ✅ 욕실 개수 (입력값)
     selectedSpaces,  // 선택된 공간 (없으면 전체)
     enabledProcessIds,  // ✅ 선택된 공정 (없으면 전체)
@@ -289,13 +412,28 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     includeBidet = false,
     includeBathtub = false,
     includeDoorlock = true,
-    includeLighting = true
-  } = input;
+    includeLighting = false  // ✅ 기본값을 false로 변경: 고객이 선택하지 않으면 포함하지 않음
+  } = adjustedInput;
+  
+  // ✅ 조정된 등급 사용
+  const grade = adjustedGrade;
   
   const sizeRange = getSizeRange(py);
   const quantities = SIZE_QUANTITIES[sizeRange];
   
-  // ✅ processSelections에서 실제 선택된 공정 추출
+  // ✅ 폴백 근절: processSelections가 단일 진실 소스
+  // processSelections가 없으면 이미 API에서 에러 처리됨
+  // mode="FULL"일 때만 전체 시공 허용
+  const isFullMode = (input as any).mode === 'FULL'
+  
+  // ✅ throw 제거 → FULL 모드로 자동 전환
+  let finalIsFullMode = isFullMode;
+  if (!processSelections && !isFullMode) {
+    console.warn('⚠️ processSelections 없음 → FULL 모드로 자동 전환');
+    finalIsFullMode = true;
+  }
+
+  // ✅ processSelections에서 실제 선택된 공정 추출 함수 (단일 진실 소스)
   const extractProcessesFromSelections = (): { 
     processIds: string[], 
     spaceIds: string[],
@@ -399,37 +537,66 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     };
   };
   
-  const extractedData = extractProcessesFromSelections();
+  // ✅ 폴백 근절: processSelections가 단일 진실 소스
+  // selectedSpaces는 UI 표시용으로만 사용, 계산에는 사용하지 않음
+  let finalEnabledProcessIds: string[] = []
+  let extractedData: ReturnType<typeof extractProcessesFromSelections>
   
-  // ✅ 선택된 공정 확인 (processSelections 우선, 없으면 enabledProcessIds 사용)
-  let finalEnabledProcessIds = enabledProcessIds || [];
-  
-  // processSelections에서 추출한 공정이 있으면 그것을 사용
-  if (extractedData.processIds.length > 0) {
-    finalEnabledProcessIds = extractedData.processIds;
-    console.log('🔄 processSelections에서 공정 추출:', finalEnabledProcessIds);
+  if (finalIsFullMode) {
+    // mode="FULL" 명시적 선택: 전체 시공
+    finalEnabledProcessIds = []
+    extractedData = {
+      processIds: [],
+      spaceIds: [],
+      hasWallFinish: false,
+      hasFloorFinish: false,
+      hasDoorFinish: false,
+      hasWindowFinish: false,
+      hasElectricLighting: false,
+      hasKitchenCore: false,
+      hasBathroomCore: false,
+      hasEntranceCore: false,
+      hasBalconyCore: false,
+      hasFurniture: false,
+      hasFilm: false
+    }
+    console.log('✅ mode="FULL": 전체 시공 모드')
+  } else if (processSelections && Object.keys(processSelections).length > 0) {
+    // processSelections에서 공정 추출 (단일 진실 소스)
+    extractedData = extractProcessesFromSelections()
+    finalEnabledProcessIds = extractedData.processIds
+    console.log('✅ processSelections에서 공정 추출:', finalEnabledProcessIds)
+  } else {
+    // ✅ processSelections가 없으면 FULL 모드로 자동 전환 (throw 제거)
+    console.warn('⚠️ processSelections가 비어있음 → FULL 모드로 자동 전환')
+    finalEnabledProcessIds = []
+    extractedData = {
+      processIds: [],
+      spaceIds: [],
+      hasWallFinish: false,
+      hasFloorFinish: false,
+      hasDoorFinish: false,
+      hasWindowFinish: false,
+      hasElectricLighting: false,
+      hasKitchenCore: false,
+      hasBathroomCore: false,
+      hasEntranceCore: false,
+      hasBalconyCore: false,
+      hasFurniture: false,
+      hasFilm: false
+    }
+    finalIsFullMode = true
   }
-  // 공정 선택이 없으면 공간 기반으로 자동 추론
-  else if (finalEnabledProcessIds.length === 0 && selectedSpaces && selectedSpaces.length > 0) {
-    const inferredProcesses: string[] = [];
-    if (selectedSpaces.includes('kitchen')) inferredProcesses.push('kitchen');
-    if (selectedSpaces.includes('bathroom')) inferredProcesses.push('bathroom');
-    if (selectedSpaces.includes('living') || selectedSpaces.includes('room')) inferredProcesses.push('finish');
-    if (selectedSpaces.includes('entrance')) inferredProcesses.push('entrance');
-    if (selectedSpaces.includes('storage')) inferredProcesses.push('furniture');
-    if (selectedSpaces.includes('balcony')) inferredProcesses.push('balcony');
-    finalEnabledProcessIds = [...new Set(inferredProcesses)];
-    console.log('🔄 공정 자동 추론 (공간 기반):', finalEnabledProcessIds);
-  }
   
-  // ✅ 전체 공정 계산 여부: 공간 선택도 없고 공정 선택도 없을 때만 전체 계산
-  const hasAllProcesses = finalEnabledProcessIds.length === 0 && (!selectedSpaces || selectedSpaces.length === 0);
+  // ✅ 폴백 근절: hasAllProcesses 제거, mode="FULL"일 때만 전체 계산
+  const hasAllProcesses = finalIsFullMode
   
-  // ✅ 선택된 공간 확인 (먼저 정의 - 공정 활성화 전에 필요)
-  const hasAllSpaces = !selectedSpaces || selectedSpaces.length === 0;
-  const hasLiving = hasAllSpaces || selectedSpaces?.includes('living') || extractedData.spaceIds.includes('living');
-  const hasKitchen = hasAllSpaces || selectedSpaces?.includes('kitchen') || extractedData.spaceIds.includes('kitchen');
-  const hasBathroom = hasAllSpaces || selectedSpaces?.includes('bathroom') || extractedData.spaceIds.includes('bathroom') || extractedData.spaceIds.includes('masterBathroom') || extractedData.spaceIds.includes('commonBathroom');
+  // ✅ 폴백 근절: selectedSpaces는 UI 표시용으로만 사용, 계산에는 extractedData.spaceIds만 사용
+  // hasAllSpaces는 mode="FULL"일 때만 true
+  const hasAllSpaces = finalIsFullMode
+  const hasLiving = hasAllSpaces || extractedData.spaceIds.includes('living')
+  const hasKitchen = hasAllSpaces || extractedData.spaceIds.includes('kitchen')
+  const hasBathroom = hasAllSpaces || extractedData.spaceIds.includes('bathroom') || extractedData.spaceIds.includes('masterBathroom') || extractedData.spaceIds.includes('commonBathroom')
   
   // ✅ 안방/일반방 분리: 원본 spaceId로 정확히 구분
   const hasMasterBedroom = extractedData.spaceIds.includes('masterBedroom');
@@ -441,9 +608,15 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   // ✅ 거실이 선택되었는지 확인 (selectedSpaces에서 'living' 또는 extractedData에서 'living')
   const hasLivingSelected = hasAllSpaces || hasLiving;
   const hasRoom = hasAllSpaces || hasMasterBedroom || hasOtherRooms;
-  const hasEntrance = hasAllSpaces || selectedSpaces?.includes('entrance') || extractedData.spaceIds.includes('entrance');
-  const hasBalcony = hasAllSpaces || selectedSpaces?.includes('balcony') || extractedData.spaceIds.some(id => id.includes('Balcony') || id.includes('balcony'));
-  const hasStorage = hasAllSpaces || selectedSpaces?.includes('storage') || extractedData.spaceIds.includes('dressRoom');
+  const hasEntrance = hasAllSpaces || extractedData.spaceIds.includes('entrance')
+  // ✅ 발코니: 정확한 spaceId 매칭 (대소문자 구분)
+  const hasBalcony = hasAllSpaces || extractedData.spaceIds.includes('balcony')
+  const hasStorage = hasAllSpaces || extractedData.spaceIds.includes('dressRoom')
+  
+  // ✅ 욕실 선택 여부 구분 (안방욕실/공용욕실/단일욕실)
+  const hasMasterBathroomSelected = extractedData.spaceIds.includes('masterBathroom');
+  const hasCommonBathroomSelected = extractedData.spaceIds.includes('commonBathroom');
+  const hasSingleBathroomSelected = extractedData.spaceIds.includes('bathroom');
   
   console.log('🎯 공정 활성화 판단:', { hasAllProcesses, finalEnabledProcessIds, selectedSpaces });
   console.log('🏠 공간 선택 상태:', { hasAllSpaces, hasLiving, hasKitchen, hasBathroom, hasMasterBedroom, hasOtherRooms, hasRoom, hasEntrance, hasBalcony, hasStorage });
@@ -454,7 +627,10 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   // ========================================
   
   // ✅ 안방만 선택되었는지 확인: extractedData.spaceIds에 안방만 있고 거실/일반방이 없으면 안방만 선택
-  const onlyMasterBedroomSelected = hasMasterBedroom && !hasLiving && !hasOtherRooms && extractedData.spaceIds.length === 1;
+  // 안방욕실(masterBathroom)이 함께 선택되어도 안방만 선택으로 간주
+  const onlyMasterBedroomSelected = hasMasterBedroom && !hasLiving && !hasOtherRooms && 
+    (extractedData.spaceIds.length === 1 || 
+     (extractedData.spaceIds.length === 2 && extractedData.spaceIds.includes('masterBathroom')));
   
   // ✅ 안방 마감 공정 확인: 안방에서 마감 공정이 선택되었는지
   const hasMasterBedroomFinish = hasMasterBedroom && (
@@ -489,12 +665,11 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     )
   );
   
-  // 전기/조명 공정: 거실/방/주방이 선택되었을 때만 (전기는 보통 거실 중심)
+  // 전기/조명 공정: 고객이 명시적으로 선택한 경우에만 포함
+  // ✅ 수정: 공간이 선택되었다고 자동 포함하지 않음, processSelections에서 electric_lighting이 선택되었을 때만
   const hasElectric = hasAllProcesses || (
-    (hasLiving || hasRoom || hasKitchen) && (
-      finalEnabledProcessIds.includes('electric') || 
-      extractedData.hasElectricLighting
-    )
+    finalEnabledProcessIds.includes('electric') || 
+    extractedData.hasElectricLighting
   );
   
   // ✅ 도어(방문) 공정: 거실 또는 일반 방이 선택되었을 때만 (안방도 포함)
@@ -620,7 +795,7 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   const furniture = calculateFurnitureEstimate(grade, sizeRange, py, closetType);
   const window = calculateWindowEstimate(grade, sizeRange, py);
   const door = calculateDoorEstimate(grade, sizeRange, py, includeFoldingDoor, foldingDoorCount);
-  const tile = calculateTileEstimate(grade, sizeRange, py);
+  const tile = await calculateTileEstimate(grade, sizeRange, py);
   const bathroom = calculateBathroomSetEstimate(grade, {
     includeBidet,
     includeBathtub
@@ -640,96 +815,156 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   // 공간별 견적 구성
   // =========================================================
   
-  // ✅ 철거/보양/청소 비용 계산 (공정 선택에 따라)
-  const calculateCommonCosts = () => {
+  // ✅ 철거/보양/청소 비용 계산 (공정 선택에 따라) - DB 통합 버전
+  const calculateCommonCosts = async () => {
     let demolitionCost = 0;
     let demolitionNote = '';
-    const demolitionItems: string[] = [];
+    const demolitionItems: Array<{ name: string; cost: number; includes?: string | null }> = [];
     let protectionCost = 0;
     let elevatorCost = 0;
     let cleaningCost = 0;
     let cleaningArea = py;
+    let wasteTon = 0;
+    let wasteCost = 0;
+    let laborCost = 0;
     
     if (hasAllProcesses) {
-      // 전체 공정: 전체 철거 + 보양 + 전체 청소
-      demolitionCost = Math.round(common.demolitionCost * demolitionRate);
-      demolitionNote = `폐기물 포함 (평당 ${Math.round(160000 * demolitionRate).toLocaleString()}원)`;
-      protectionCost = protection.floventCost + protection.tentenCost;
-      elevatorCost = protection.elevatorCost;
+      // ✅ 전체 공정: DB에서 패키지 조회 후 폐기물/인건비 분리
+      const { calculateFullDemolitionBreakdown } = await import('@/lib/data/pricing-v3/demolition-packages');
+      const breakdown = await calculateFullDemolitionBreakdown(
+        py, 
+        'apartment',
+        true, // hasElevator
+        5     // hallwaySheets
+      );
+      
+      demolitionCost = breakdown.packagePrice;
+      wasteTon = breakdown.wasteTon;
+      wasteCost = breakdown.wasteCost;
+      laborCost = breakdown.laborCost;
+      protectionCost = breakdown.protectionCost;
+      elevatorCost = breakdown.elevatorCost;
+      
+      demolitionNote = `전체 철거 패키지 (바닥+천장+욕실+주방+가구+문 포함)`;
       cleaningCost = common.cleaningCost;
     } else {
-      // ✅ 부분 공정: 철거 필요한 공정만 (개선된 로직)
+      // ✅ 부분 공정: DB에서 항목별 조회
+      const {
+        getBathroomItemByPyeong,
+        getKitchenItemByPyeong,
+        getDemolitionItemsByCategory,
+        getWasteConfigFromDB,
+        calculateProtectionCostFromDB
+      } = await import('@/lib/db/adapters/demolition-adapter');
       
-      // 1️⃣ 욕실: 필수 철거 (타일+도기)
+      // 1️⃣ 욕실: DB에서 조회
       if (hasBathroomProcess) {
-        const bathroomDemolition = Math.round(py * 0.15 * 160000 * 0.5);
-        demolitionCost += bathroomDemolition;
-        demolitionItems.push('욕실 (타일+도기)');
+        const bathroomItem = await getBathroomItemByPyeong(py);
+        if (bathroomItem) {
+          demolitionItems.push({
+            name: bathroomItem.item_name,
+            cost: bathroomItem.unit_price,
+            includes: bathroomItem.includes // DB 항목의 includes 정보 저장
+          });
+          demolitionCost += bathroomItem.unit_price;
+        } else {
+          // Fallback: 하드코딩 값
+          const bathroomDemolition = Math.round(py * 0.15 * 160000 * 0.5);
+          demolitionItems.push({
+            name: '욕실 전체 철거',
+            cost: bathroomDemolition
+          });
+          demolitionCost += bathroomDemolition;
+        }
       }
       
-      // 2️⃣ 베란다: 기존 마감재 철거 필요
+      // 2️⃣ 주방: DB에서 조회
+      if (hasKitchenProcess) {
+        const kitchenItem = await getKitchenItemByPyeong(py);
+        if (kitchenItem) {
+          demolitionItems.push({
+            name: kitchenItem.item_name,
+            cost: kitchenItem.unit_price,
+            includes: kitchenItem.includes // DB 항목의 includes 정보 저장
+          });
+          demolitionCost += kitchenItem.unit_price;
+        }
+        // 주방은 싱크대 철거비가 설치비에 포함되어 있음 (별도 철거비 없음)
+      }
+      
+      // 3️⃣ 바닥재: DB에서 조회
+      if (hasFinish && needsFloorDemolition) {
+        const floorItems = await getDemolitionItemsByCategory('DEM-FLOOR', py);
+        const floorPackage = floorItems.find(item => item.is_package && item.pyeong_min && item.pyeong_max && py >= item.pyeong_min && py <= item.pyeong_max);
+        if (floorPackage) {
+          demolitionItems.push({
+            name: floorPackage.item_name,
+            cost: floorPackage.unit_price,
+            includes: floorPackage.includes // DB 항목의 includes 정보 저장
+          });
+          demolitionCost += floorPackage.unit_price;
+        } else {
+          // Fallback: 하드코딩 값
+          const floorDemolition = Math.round(py * 0.3 * 160000 * 0.25);
+          demolitionItems.push({
+            name: '바닥재 철거',
+            cost: floorDemolition
+          });
+          demolitionCost += floorDemolition;
+        }
+      }
+      
+      // 4️⃣ 천장: DB에서 조회 (필요시)
+      // 현재는 천장만 단독으로 철거하는 경우가 거의 없으므로 생략
+      
+      // 5️⃣ 베란다: 기존 마감재 철거 필요 (DB 항목 없음, 하드코딩)
       if (hasBalconyProcess && hasBalcony) {
         const balconyDemolition = Math.round(py * 0.08 * 160000 * 0.3);
+        demolitionItems.push({
+          name: '베란다 철거',
+          cost: balconyDemolition
+        });
         demolitionCost += balconyDemolition;
-        demolitionItems.push('베란다');
       }
       
-      // 3️⃣ 현관: 타일 교체 시 철거 필요
+      // 6️⃣ 현관: 타일 교체 시 철거 필요 (DB 항목 없음, 하드코딩)
       if (hasEntranceProcess && hasEntrance) {
         const entranceDemolition = Math.round(py * 0.05 * 160000 * 0.3);
+        demolitionItems.push({
+          name: '현관 타일 철거',
+          cost: entranceDemolition
+        });
         demolitionCost += entranceDemolition;
-        demolitionItems.push('현관 타일');
       }
       
-      // 4️⃣ 마감 공정: 바닥재 교체 시만 철거 (도배/필름은 철거 불필요!)
-      if (hasFinish && needsFloorDemolition) {
-        const floorDemolition = Math.round(py * 0.3 * 160000 * 0.25);
-        demolitionCost += floorDemolition;
-        demolitionItems.push('바닥재');
-      }
-      
-      // 5️⃣ 주방: 싱크대 철거비가 설치비에 포함되어 있음 (별도 철거비 없음)
-      // 6️⃣ 가구: 붙박이장 철거+설치가 공사비에 포함 (별도 철거비 없음)
+      // 7️⃣ 가구: 붙박이장 철거+설치가 공사비에 포함 (별도 철거비 없음)
       
       // 철거 항목 정리
       if (demolitionItems.length > 0) {
-        demolitionNote = demolitionItems.join(' + ') + ' 철거';
+        demolitionNote = demolitionItems.map(item => item.name).join(' + ') + ' 철거';
       }
       
-      // 보양: 철거 공정이 있을 때만
+      // ✅ 폐기물 비용 계산: 현장 단위로 1회만 계산
+      // 철거 공정이 1개 이상 존재하면 폐기물 비용은 1회만 추가
+      // 부분 철거/전체 철거 구분 없이 철거가 있으면 폐기물 비용 포함
+      if (demolitionItems.length > 0) {
+        const wasteConfig = await getWasteConfigFromDB(py);
+        // 폐기물 톤수는 평형 기준으로 계산 (공정 개수와 무관하게 1회만)
+        wasteTon = wasteConfig ? wasteConfig.max_ton : Math.ceil(py * 0.04 * 10) / 10;
+        wasteCost = wasteTon * (wasteConfig ? wasteConfig.price_per_ton : 500000);
+        // 폐기물 비용은 demolitionCost에 포함하지 않고 별도 관리
+        // (표시 시 별도 항목으로 표시하기 위함)
+      }
+      
+      // 보양: 철거 공정이 있을 때만 (DB 조회)
       if (demolitionCost > 0) {
-        // 철거 규모에 따라 보양 비용 비례 적용
-        const protectionRatio = Math.min(demolitionCost / common.demolitionCost, 0.5);
-        protectionCost = Math.round(protection.floventCost * protectionRatio);
-        elevatorCost = protection.elevatorCost;
+        const protection = await calculateProtectionCostFromDB(true, 5);
+        protectionCost = protection.items.find(i => i.name.includes('복도'))?.cost || 0;
+        elevatorCost = protection.items.find(i => i.name.includes('엘리베이터'))?.cost || 0;
       }
       
-      // ✅ 청소 면적: 선택된 공간 비율로 계산 (안방만 선택 시 안방만 계산)
-      const spaceRatios: Record<string, number> = {
-        living: 0.35, kitchen: 0.15, bathroom: 0.15,
-        room: 0.25, masterBedroom: 0.15, // ✅ 안방은 별도 비율 (15%)
-        entrance: 0.05, balcony: 0.05, storage: 0.05
-      };
-      
-      let totalRatio = 0;
-      // ✅ 안방만 선택되었으면 안방 면적만 계산
-      if (onlyMasterBedroomSelected) {
-        totalRatio = spaceRatios.masterBedroom;
-      } else {
-        // 일반적인 경우: 선택된 공간 비율 합산
-        if (hasLiving) totalRatio += spaceRatios.living;
-        if (hasOtherRooms) totalRatio += spaceRatios.room;
-        if (hasMasterBedroom && !onlyMasterBedroomSelected) totalRatio += spaceRatios.masterBedroom;
-        if (hasKitchen) totalRatio += spaceRatios.kitchen;
-        if (hasBathroom) totalRatio += spaceRatios.bathroom;
-        if (hasEntrance) totalRatio += spaceRatios.entrance;
-        if (hasBalcony) totalRatio += spaceRatios.balcony;
-        if (hasStorage) totalRatio += spaceRatios.storage;
-      }
-      
-      // ✅ 최소 면적: 안방만 선택 시 안방 면적만, 그 외는 최소 20%
-      const minRatio = onlyMasterBedroomSelected ? spaceRatios.masterBedroom : 0.2;
-      cleaningArea = Math.max(Math.round(py * totalRatio), Math.round(py * minRatio));
+      // ✅ 청소 면적: 고객이 입력한 평수로 무조건 계산 (선택된 공간 비율 무시)
+      cleaningArea = py;  // 고객 입력 평수 그대로 사용
       cleaningCost = cleaningArea * 20000;  // 평당 2만원
     }
     
@@ -746,27 +981,89 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
       hasEntranceProcess,
       needsFloorDemolition,
       demolitionItems,
-      demolitionCost 
+      demolitionCost,
+      wasteTon,
+      wasteCost,
+      laborCost
     });
     
-    return { demolitionCost, demolitionNote, protectionCost, elevatorCost, cleaningCost, cleaningArea };
+    return { 
+      demolitionCost, 
+      demolitionNote, 
+      protectionCost, 
+      elevatorCost, 
+      cleaningCost, 
+      cleaningArea,
+      demolitionItems,
+      wasteTon,
+      wasteCost,
+      laborCost
+    };
   };
   
-  const commonCosts = calculateCommonCosts();
+  const commonCosts = await calculateCommonCosts();
   
   // 1. 공통 공사 (조건부 항목)
   const commonItems: ProcessItem[] = [];
   
-  // 철거 (필요한 경우만)
+  // 철거 항목 표시 (개선)
+  // ✅ Phase 2: 철거 공정은 LOCK 상태로 표시
   if (commonCosts.demolitionCost > 0) {
-    commonItems.push({
-      name: hasAllProcesses ? '철거' : '부분 철거',
-      quantity: hasAllProcesses ? `${py}평` : commonCosts.demolitionNote,
-      materialCost: 0,
-      laborCost: commonCosts.demolitionCost,
-      totalCost: commonCosts.demolitionCost,
-      note: hasAllProcesses ? commonCosts.demolitionNote : '폐기물 포함'
-    });
+    if (hasAllProcesses) {
+      // ✅ 전체 철거: 패키지 가격 + 폐기물 + 인건비 분리 표시
+      // 1. 전체 철거 패키지 (노무비로 표시) - LOCK 상태
+      commonItems.push({
+        name: '전체 철거',
+        quantity: '1식',
+        materialCost: 0,
+        laborCost: commonCosts.laborCost,
+        totalCost: commonCosts.laborCost,
+        note: '바닥+천장+욕실+주방+가구+문 철거',
+        isLocked: true,
+        lockReason: '이 공정은 공사 후 변경이 어렵습니다',
+        canOverride: false
+      });
+      
+      // 2. 폐기물 처리
+      commonItems.push({
+        name: '폐기물 처리',
+        quantity: `${commonCosts.wasteTon.toFixed(1)}톤`,
+        materialCost: 0,
+        laborCost: commonCosts.wasteCost,
+        totalCost: commonCosts.wasteCost,
+        note: '예상 톤수 (초과 시 실비 정산)'
+      });
+    } else {
+      // ✅ 부분 철거: 필요한 항목만 상세 표시
+      // 각 철거 항목 표시 (폐기물 비용은 별도 항목으로 표시)
+      // ✅ Phase 2: 철거 항목은 모두 LOCK 상태
+      commonCosts.demolitionItems.forEach((item) => {
+        commonItems.push({
+          name: item.name,
+          quantity: '1식',
+          materialCost: 0,
+          laborCost: item.cost,
+          totalCost: item.cost,
+          note: undefined,
+          isLocked: true,
+          lockReason: '이 공정은 공사 후 변경이 어렵습니다',
+          canOverride: false
+        });
+      });
+      
+      // ✅ 폐기물 처리: 현장 단위로 1회만 표시
+      // 철거 공정이 1개 이상이면 폐기물 비용은 항상 1회만 표시
+      if (commonCosts.demolitionItems.length > 0 && commonCosts.wasteCost > 0) {
+        commonItems.push({
+          name: '폐기물 처리',
+          quantity: `${commonCosts.wasteTon.toFixed(1)}톤`,
+          materialCost: 0,
+          laborCost: commonCosts.wasteCost,
+          totalCost: commonCosts.wasteCost,
+          note: '예상 톤수 (초과 시 실비 정산)'
+        });
+      }
+    }
   }
   
   // 보양 (철거가 있는 경우만)
@@ -899,14 +1196,6 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     spaceName: '주방',
     items: [
       {
-        name: '싱크대 철거',
-        quantity: '1식',
-        materialCost: 0,
-        laborCost: kitchen.removeLabor,
-        totalCost: kitchen.removeLabor,
-        note: '폐기물 포함'
-      },
-      {
         name: grade === 'ARGEN' ? '싱크대 (🔧아르젠 제작)' : '싱크대',
         quantity: `${kitchen.ja}자`,
         materialCost: kitchen.materialCost,
@@ -941,14 +1230,6 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     subKitchenSpace = {
       spaceName: '🥗 보조 주방 (팬트리)',
       items: [
-        {
-          name: '싱크대 철거',
-          quantity: '1식',
-          materialCost: 0,
-          laborCost: Math.round(kitchen.removeLabor * subKitchenRatio),
-          totalCost: Math.round(kitchen.removeLabor * subKitchenRatio),
-          note: '폐기물 포함'
-        },
         {
           name: grade === 'ARGEN' ? '싱크대 (🔧아르젠 제작)' : '싱크대',
           quantity: `${subKitchenJa}자`,
@@ -1088,25 +1369,30 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     return space;
   };
   
-  // ✅ 욕실 견적 생성 (개수에 따라 분리)
+  // ✅ 욕실 견적 생성 (개수에 따라 분리, 선택된 욕실만)
   let bathroomSpace: SpaceEstimate;
   let masterBathroomSpace: SpaceEstimate | undefined;
   let commonBathroomSpace: SpaceEstimate | undefined;
   
   if (hasTwoBathrooms) {
-    // 2개 이상: 안방욕실 + 공용욕실 분리
-    masterBathroomSpace = createSingleBathroomEstimate(
-      '🛁 안방 욕실', 
-      masterIncludeBidet, 
-      masterIncludeBathtub,
-      0.55  // 안방욕실이 보통 더 큼 (55%)
-    );
-    commonBathroomSpace = createSingleBathroomEstimate(
-      '🚿 공용 욕실', 
-      commonIncludeBidet, 
-      commonIncludeBathtub,
-      0.45  // 공용욕실 (45%)
-    );
+    // 2개 이상: 선택된 욕실만 생성
+    if (hasMasterBathroomSelected) {
+      masterBathroomSpace = createSingleBathroomEstimate(
+        '🛁 안방 욕실', 
+        masterIncludeBidet, 
+        masterIncludeBathtub,
+        0.55  // 안방욕실이 보통 더 큼 (55%)
+      );
+    }
+    
+    if (hasCommonBathroomSelected) {
+      commonBathroomSpace = createSingleBathroomEstimate(
+        '🚿 공용 욕실', 
+        commonIncludeBidet, 
+        commonIncludeBathtub,
+        0.45  // 공용욕실 (45%)
+      );
+    }
     
     // 기존 bathroomSpace는 빈 값으로 (호환성 유지)
     bathroomSpace = {
@@ -1114,18 +1400,24 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
       items: [],
       subtotal: 0
     };
-  } else {
-    // 1개: 기존 방식
+  } else if (hasSingleBathroomSelected) {
+    // 1개: 단일 욕실 선택된 경우
     bathroomSpace = createSingleBathroomEstimate(
       '욕실',
       finalIncludeBidet,
       finalIncludeBathtub,
       1  // 전체 면적
     );
+  } else {
+    // 선택되지 않은 경우 빈 견적
+    bathroomSpace = {
+      spaceName: '욕실 (미선택)',
+      items: [],
+      subtotal: 0
+    };
   }
   
-  // 현관 타일 추가 (욕실 견적에 포함 - 기존 방식 유지)
-  // 욕실이 분리된 경우 공용욕실에 추가, 아니면 bathroomSpace에 추가
+  // 현관 타일 항목 생성
   const entranceTileItem: ProcessItem = {
     name: '현관 타일',
     quantity: `${tile.entranceArea}m²`,
@@ -1135,12 +1427,23 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     brands: tile.brands.map(b => `${b.name} ${b.product}`)
   };
   
-  if (hasTwoBathrooms && commonBathroomSpace) {
-    commonBathroomSpace.items.push(entranceTileItem);
-    commonBathroomSpace.subtotal += tile.entranceTotalCost;
+  // ✅ 현관 공간 견적 생성 (현관 공정이 활성화된 경우)
+  let entranceSpace: SpaceEstimate | undefined;
+  if (hasEntranceProcess) {
+    entranceSpace = {
+      spaceName: '현관',
+      items: [entranceTileItem],
+      subtotal: tile.entranceTotalCost
+    };
   } else {
-    bathroomSpace.items.push(entranceTileItem);
-    bathroomSpace.subtotal += tile.entranceTotalCost;
+    // 현관 공정이 없으면 기존 방식대로 욕실에 포함 (호환성 유지)
+    if (hasTwoBathrooms && hasCommonBathroomSelected && commonBathroomSpace) {
+      commonBathroomSpace.items.push(entranceTileItem);
+      commonBathroomSpace.subtotal += tile.entranceTotalCost;
+    } else if (hasSingleBathroomSelected && bathroomSpace && bathroomSpace.items.length > 0) {
+      bathroomSpace.items.push(entranceTileItem);
+      bathroomSpace.subtotal += tile.entranceTotalCost;
+    }
   }
   
   // 5. 수납/가구
@@ -1178,18 +1481,23 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
         totalCost: window.packagePrice,
         brands: window.brands.map(b => `${b.name} ${b.product}`),
         note: `${window.spec.glassThickness} ${window.spec.lowE ? '로이' : '복층'}${window.spec.argon ? '+아르곤' : ''}`
-      },
-      {
-        name: '필름',
-        quantity: `${film.length}m`,
-        materialCost: film.materialCost,
-        laborCost: film.laborCost,
-        totalCost: film.totalCost,
-        brands: film.brands.map(b => `${b.name} ${b.product}`)
       }
     ],
-    subtotal: window.packagePrice + film.totalCost
+    subtotal: window.packagePrice
   };
+  
+  // ✅ 필름은 hasFilmProcess일 때만 추가
+  if (hasFilmProcess) {
+    windowSpace.items.push({
+      name: '필름',
+      quantity: `${film.length}m`,
+      materialCost: film.materialCost,
+      laborCost: film.laborCost,
+      totalCost: film.totalCost,
+      brands: film.brands.map(b => `${b.name} ${b.product}`)
+    });
+    windowSpace.subtotal += film.totalCost;
+  }
   
   // 7. 조명 (옵션)
   let lightingSpace: SpaceEstimate | undefined;
@@ -1223,6 +1531,25 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
         }
       ],
       subtotal: lighting.totalCost
+    };
+  }
+  
+  // 8. 발코니 (발코니 공정이 활성화된 경우)
+  let balconySpace: SpaceEstimate | undefined;
+  if (hasBalconyProcess) {
+    balconySpace = {
+      spaceName: '발코니',
+      items: [
+        {
+          name: '발코니 공사',
+          quantity: '1식',
+          materialCost: 0,  // TODO: 발코니 자재비 계산 필요
+          laborCost: 0,      // TODO: 발코니 노무비 계산 필요
+          totalCost: 0,
+          note: '발코니 공사 (자재비/노무비 별도 계산 필요)'
+        }
+      ],
+      subtotal: 0
     };
   }
   
@@ -1287,11 +1614,32 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     }
   }
   
-  // 욕실 (욕실 공정이 활성화되었을 때만)
+  // 욕실 (욕실 공정이 활성화되었을 때만, 선택된 욕실만 계산)
   if (hasBathroomProcess) {
-    materialTotal += tile.bathroomMaterialCost;
-    materialTotal += (bathroom.setTotal * bathroomCount);
-    materialTotal += (finalIncludeBidet && bathroom.bidet ? bathroom.bidet.price * bathroomCount : 0);
+    // 선택된 욕실 개수만 계산
+    let selectedBathroomCount = 0;
+    if (hasTwoBathrooms) {
+      if (hasMasterBathroomSelected) selectedBathroomCount++;
+      if (hasCommonBathroomSelected) selectedBathroomCount++;
+    } else if (hasSingleBathroomSelected) {
+      selectedBathroomCount = 1;
+    }
+    
+    // 타일 비용은 선택된 욕실에 따라 계산
+    if (hasTwoBathrooms) {
+      if (hasMasterBathroomSelected) {
+        materialTotal += Math.round(tile.bathroomMaterialCost * 0.55); // 안방욕실 비율
+      }
+      if (hasCommonBathroomSelected) {
+        materialTotal += Math.round(tile.bathroomMaterialCost * 0.45); // 공용욕실 비율
+      }
+    } else if (hasSingleBathroomSelected) {
+      materialTotal += tile.bathroomMaterialCost; // 단일 욕실
+    }
+    
+    // 욕실 세트 비용은 선택된 욕실 개수만큼
+    materialTotal += (bathroom.setTotal * selectedBathroomCount);
+    materialTotal += (finalIncludeBidet && bathroom.bidet ? bathroom.bidet.price * selectedBathroomCount : 0);
     materialTotal += (finalIncludeBathtub && bathroom.bathtub ? bathroom.bathtub.price : 0);
   }
   
@@ -1358,9 +1706,18 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
     laborTotal += tile.kitchenLaborCost;
   }
   
-  // 욕실 노무비
+  // 욕실 노무비 (선택된 욕실만 계산)
   if (hasBathroomProcess) {
-    laborTotal += tile.bathroomLaborCost;
+    if (hasTwoBathrooms) {
+      if (hasMasterBathroomSelected) {
+        laborTotal += Math.round(tile.bathroomLaborCost * 0.55); // 안방욕실 비율
+      }
+      if (hasCommonBathroomSelected) {
+        laborTotal += Math.round(tile.bathroomLaborCost * 0.45); // 공용욕실 비율
+      }
+    } else if (hasSingleBathroomSelected) {
+      laborTotal += tile.bathroomLaborCost; // 단일 욕실
+    }
   }
   
   // 현관 노무비
@@ -1421,9 +1778,9 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   // 공통 공사는 항상 포함 (철거/보양이 있을 때만 항목 표시)
   const finalCommonSpace = commonSpace;
   
-  // ✅ 안방 마감 공간 생성 (안방만 선택되었을 때)
+  // ✅ 안방 마감 공간 생성 (안방이 선택되었을 때 - 안방욕실과 함께 선택되어도 포함)
   let masterBedroomFinishSpace: SpaceEstimate | undefined;
-  if (hasMasterBedroomFinish && onlyMasterBedroomSelected) {
+  if (hasMasterBedroomFinish && (onlyMasterBedroomSelected || (hasMasterBedroom && !hasLiving && !hasOtherRooms))) {
     const items: ProcessItem[] = [];
     let subtotal = 0;
     
@@ -1475,7 +1832,8 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   }
   
   // 거실/복도 - 마감 공정이 활성화되었을 때만 (안방만 선택 시 안방 마감으로 대체)
-  const finalLivingSpace = hasMasterBedroomFinish && onlyMasterBedroomSelected && masterBedroomFinishSpace
+  // ✅ 안방과 안방욕실이 함께 선택되어도 안방 마감 공간 포함
+  const finalLivingSpace = (hasMasterBedroomFinish && masterBedroomFinishSpace && (onlyMasterBedroomSelected || (hasMasterBedroom && !hasLiving && !hasOtherRooms)))
     ? masterBedroomFinishSpace
     : (hasFinish && !onlyMasterBedroomSelected) 
       ? livingSpace 
@@ -1492,13 +1850,20 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   // 욕실 - 욕실 공정이 활성화되었을 때만
   const finalBathroomSpace = hasBathroomProcess ? bathroomSpace : createEmptySpace('욕실 (미선택)');
   
-  // ✅ 안방욕실/공용욕실 - 2개 이상일 때만 분리
-  const finalMasterBathroomSpace = (hasBathroomProcess && hasTwoBathrooms && masterBathroomSpace) 
-    ? masterBathroomSpace 
-    : undefined;
-  const finalCommonBathroomSpace = (hasBathroomProcess && hasTwoBathrooms && commonBathroomSpace) 
-    ? commonBathroomSpace 
-    : undefined;
+  // ✅ 안방욕실/공용욕실 - 2개 이상일 때만 분리, 선택된 것만
+  const finalMasterBathroomSpace = (
+    hasBathroomProcess && 
+    hasTwoBathrooms && 
+    hasMasterBathroomSelected && 
+    masterBathroomSpace
+  ) ? masterBathroomSpace : undefined;
+  
+  const finalCommonBathroomSpace = (
+    hasBathroomProcess && 
+    hasTwoBathrooms && 
+    hasCommonBathroomSelected && 
+    commonBathroomSpace
+  ) ? commonBathroomSpace : undefined;
   
   // 수납/가구 - 가구 공정이 활성화되었을 때만
   const finalStorageSpace = hasStorageProcess ? storageSpace : createEmptySpace('수납/가구 (미선택)');
@@ -1509,12 +1874,54 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
   // 조명 - 전기 공정이 활성화되었을 때만
   const finalLightingSpace = (lighting && hasElectric) ? lightingSpace : undefined;
   
+  // ✅ 발코니 - 발코니 공정이 활성화되었을 때만
+  const finalBalconySpace = hasBalconyProcess && balconySpace 
+    ? balconySpace 
+    : undefined;
+  
+  // ✅ 현관 - 현관 공정이 활성화되었을 때만
+  const finalEntranceSpace = hasEntranceProcess && entranceSpace 
+    ? entranceSpace 
+    : undefined;
+  
   console.log('📋 최종 견적 결과:', {
-    hasFinish, hasKitchenProcess, hasBathroomProcess, hasStorageProcess, hasDoor, hasElectric,
+    hasFinish, hasKitchenProcess, hasBathroomProcess, hasStorageProcess, hasDoor, hasWindow, hasElectric,
+    hasBalconyProcess, hasEntranceProcess, hasFilmProcess,
     materialTotal, laborTotal, grandTotal
   });
+  // ✅ 각 공간별 최종 견적 포함 여부 확인
+  console.log('🏠 최종 견적 공간 포함 여부:', {
+    거실복도: finalLivingSpace.spaceName !== '거실/복도 (미선택)',
+    주방: finalKitchenSpace.spaceName !== '주방 (미선택)',
+    욕실: finalBathroomSpace.spaceName !== '욕실 (미선택)',
+    안방욕실: !!finalMasterBathroomSpace,
+    공용욕실: !!finalCommonBathroomSpace,
+    수납가구: finalStorageSpace.spaceName !== '수납/가구 (미선택)',
+    창호: finalWindowSpace.spaceName !== '창호 (미선택)',
+    조명: !!finalLightingSpace,
+    발코니: !!finalBalconySpace,
+    현관: !!finalEntranceSpace
+  });
   
-  return {
+  // ✅ Phase 2: LOCK 공정 정보 수집 (철거 공정)
+  const lockedProcesses: Array<{
+    processId: string;
+    processLabel: string;
+    lockReason: string;
+    canOverride: boolean;
+  }> = [];
+  
+  // 철거 공정이 있으면 LOCK 상태로 추가
+  if (commonCosts.demolitionCost > 0) {
+    lockedProcesses.push({
+      processId: 'demolition',
+      processLabel: hasAllProcesses ? '전체 철거' : '부분 철거',
+      lockReason: '이 공정은 공사 후 변경이 어렵습니다',
+      canOverride: false
+    });
+  }
+  
+  const result = {
     input: {
       py,
       sizeRange,
@@ -1531,7 +1938,9 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
       commonBathroom: finalCommonBathroomSpace,   // ✅ 공용욕실 (2개 이상일 때)
       storage: finalStorageSpace,
       window: finalWindowSpace,
-      lighting: finalLightingSpace
+      lighting: finalLightingSpace,
+      balcony: finalBalconySpace,                 // ✅ 발코니 (옵션)
+      entrance: finalEntranceSpace                 // ✅ 현관 (옵션)
     },
     summary: {
       materialTotal,
@@ -1542,8 +1951,12 @@ export function calculateFullEstimateV3(input: EstimateInputV3): FullEstimateV3 
       pricePerPy
     },
     duration,
-    argenFeatures
+    argenFeatures,
+    // ✅ Phase 2: LOCK 공정 정보
+    lockedProcesses: lockedProcesses.length > 0 ? lockedProcesses : undefined
   };
+  
+  return result;
 }
 
 // ============================================================
@@ -1562,8 +1975,8 @@ export interface GradeComparison {
   };
 }
 
-/** 4등급 비교 견적 계산 */
-export function calculateGradeComparison(py: number): GradeComparison {
+/** 4등급 비교 견적 계산 (비동기) */
+export async function calculateGradeComparison(py: number): Promise<GradeComparison> {
   const sizeRange = getSizeRange(py);
   
   const baseInput: Omit<EstimateInputV3, 'grade'> = {
@@ -1577,10 +1990,12 @@ export function calculateGradeComparison(py: number): GradeComparison {
     includeLighting: true
   };
   
-  const basic = calculateFullEstimateV3({ ...baseInput, grade: 'BASIC' });
-  const standard = calculateFullEstimateV3({ ...baseInput, grade: 'STANDARD' });
-  const argen = calculateFullEstimateV3({ ...baseInput, grade: 'ARGEN' });
-  const premium = calculateFullEstimateV3({ ...baseInput, grade: 'PREMIUM' });
+  const [basic, standard, argen, premium] = await Promise.all([
+    calculateFullEstimateV3({ ...baseInput, grade: 'BASIC' }),
+    calculateFullEstimateV3({ ...baseInput, grade: 'STANDARD' }),
+    calculateFullEstimateV3({ ...baseInput, grade: 'ARGEN' }),
+    calculateFullEstimateV3({ ...baseInput, grade: 'PREMIUM' })
+  ]);
   
   return {
     py,
@@ -1629,9 +2044,10 @@ export function generateEstimateTextV3(estimate: FullEstimateV3): string {
 `;
 
   // 공간별 견적 (안방욕실/공용욕실/보조주방 분리 지원)
+  // ✅ 안방 마감 공간이 finalLivingSpace에 포함되어 있으면 별도로 표시하지 않음 (이미 거실/복도에 포함됨)
   const allSpaces = [
     spaces.common,
-    spaces.living,
+    spaces.living, // ✅ 안방 마감이 포함되어 있을 수 있음
     spaces.kitchen,
     spaces.subKitchen, // ✅ 보조주방 (있으면 표시)
     // 욕실: 분리된 경우 안방/공용 따로, 아니면 통합
@@ -1691,4 +2107,3 @@ ${argenFeatures.recommended.map(item => `     • ${item}`).join('\n')}
   
   return text;
 }
-

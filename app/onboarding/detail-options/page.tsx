@@ -176,10 +176,13 @@ export default function DetailOptionsPage() {
     setOptions(prev => ({ ...prev, [key]: value }))
   }
 
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+
   const handleNext = () => {
+    setIsAnalyzing(true)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(options))
-    // ✅ 세부옵션 → 성향분석(저장된 모드의 질문) → AI 분석 → 견적
-    router.push('/onboarding/personality')
+    // ✅ 새 플로우: 세부옵션 → 결과 화면 (AI 분석)
+    router.push('/onboarding/ai-recommendation')
   }
 
   const handleBack = () => {
@@ -538,10 +541,20 @@ export default function DetailOptionsPage() {
           </button>
           <button
             onClick={handleNext}
-            className="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium hover:from-orange-600 hover:to-amber-600 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25"
+            disabled={isAnalyzing}
+            className="flex-1 py-4 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium hover:from-orange-600 hover:to-amber-600 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            AI 분석하기 🤖
-            <ArrowRight className="w-5 h-5" />
+            {isAnalyzing ? (
+              <>
+                <span className="animate-spin text-xl">⏳</span>
+                <span>분석 중...</span>
+              </>
+            ) : (
+              <>
+                AI 분석하기 🤖
+                <ArrowRight className="w-5 h-5" />
+              </>
+            )}
           </button>
         </div>
       </main>

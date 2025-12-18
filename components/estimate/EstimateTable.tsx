@@ -41,12 +41,22 @@ export function EstimateTable({ items, title }: EstimateTableProps) {
           </thead>
           <tbody>
             {items.map((row, idx) => (
-              <tr key={idx} className="border-b last:border-0">
+              <tr key={idx} className={`border-b last:border-0 ${row.isLocked ? 'bg-amber-50' : ''}`}>
                 <td className="px-2 py-1 align-top whitespace-nowrap">
+                  {row.isLocked && (
+                    <span className="inline-block mr-1" title={row.lockReason || '이 공정은 변경할 수 없습니다'}>
+                      🔒
+                    </span>
+                  )}
                   {row.공정}
                 </td>
                 <td className="px-2 py-1 align-top whitespace-nowrap">
                   {row.항목}
+                  {row.isLocked && row.lockReason && (
+                    <div className="text-xs text-amber-600 mt-0.5">
+                      {row.lockReason}
+                    </div>
+                  )}
                 </td>
                 <td className="px-2 py-1 align-top whitespace-nowrap text-gray-700">
                   {row.브랜드 ?? '-'}

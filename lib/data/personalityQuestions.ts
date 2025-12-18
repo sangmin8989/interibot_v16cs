@@ -3,6 +3,33 @@
 
 export type AnalysisMode = 'quick' | 'standard' | 'deep' | 'vibe'
 
+// Phase 2: 답변 상태 타입 정의
+export type AnswerState = 'NORMAL' | 'UNKNOWN' | 'EXPERT_ASSUMPTION'
+
+// Phase 2: 답변 데이터 구조
+export interface QuestionAnswer {
+  questionId: string
+  answerState: AnswerState
+  answerValue?: string  // NORMAL일 때만 존재
+}
+
+// Phase 3: 색상 파렛트 타입 정의 (구조만 설계, 실행은 OFF)
+export type ColorPaletteStatus = 'KEEP' | 'TONE_ADJUST' | 'UNKNOWN'
+export type ToneShift = 'WARM' | 'NEUTRAL' | 'COOL'
+
+export interface ColorPalette {
+  id: string
+  mainColor: string  // 범주형 명칭 (예: "웜 화이트")
+  subColor: string   // 범주형 명칭 (예: "뉴트럴 그레이")
+  pointColor?: string // 범주형 명칭 (선택, 예: "소프트 우드톤")
+}
+
+export interface ColorPaletteState {
+  status: ColorPaletteStatus
+  paletteId?: string  // KEEP 또는 TONE_ADJUST일 때
+  toneShift?: ToneShift  // TONE_ADJUST일 때만
+}
+
 export interface QuestionOption {
   id: string
   text: string
@@ -11,10 +38,18 @@ export interface QuestionOption {
   isAuto?: boolean // AI 대신 선택 옵션
 }
 
+// Phase 0: 질문 통제 스키마 (V5 업그레이드)
+export type QuestionImpactType = 'PRICE' | 'PROCESS' | 'OPTION' | 'NONE'
+
 export interface Question {
   id: string  // 문자열 ID (백엔드와 동일)
   text: string
   options: QuestionOption[]
+  // Phase 0: 질문 통제용 메타데이터 (선택적 필드 - 기존 코드 호환성 유지)
+  questionId?: string  // 질문 고유 식별자 (id와 동일하거나 별도 관리)
+  referencedFields?: string[]  // 이 질문이 참조하는 고객 입력 필드 목록
+  impactType?: QuestionImpactType  // 견적 금액/공정 수/옵션 분기 영향도
+  allowIfMissingOnly?: boolean  // 참조 필드가 비어 있을 때만 질문 허용 여부
 }
 
 export interface ModeConfig {

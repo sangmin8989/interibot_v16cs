@@ -53,6 +53,7 @@ export interface SpaceInfo {
   ageRanges?: string[];  // ['baby', 'child', 'teen', 'adult', 'senior']
   lifestyleTags?: string[];  // ['hasPets', 'hasElderly', 'hasPregnant', ...]
   totalPeople?: number;
+  additionalNotes?: string;  // 추가 정보 (자유 입력)
   // 거주 목적 및 기간
   livingPurpose?: '실거주' | '매도준비' | '임대' | '입력안함' | string | null;
   livingYears?: number | null;

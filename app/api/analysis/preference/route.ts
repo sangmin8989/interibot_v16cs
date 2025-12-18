@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const scores: PreferenceScores = buildPreferenceScores(effectiveAnswers);
+    const scores: PreferenceScores = await buildPreferenceScores(effectiveAnswers, undefined, 'standard');
 
     return NextResponse.json(
       {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import StepIndicator from '@/components/onboarding/StepIndicator'
 import { useScopeStore } from '@/lib/store/scopeStore'
 import { useProcessStore } from '@/lib/store/processStore'
+import { usePersonalityStore } from '@/lib/store/personalityStore'
 import SpaceAccordion from '@/components/onboarding/process/SpaceAccordion'
 import ConfirmModal from '@/components/onboarding/process/ConfirmModal'
 import { getProcessGroupsForSpace } from '@/constants/processes'
@@ -23,7 +24,12 @@ export default function ProcessPage() {
     applyDefaultFullScopeForSelectedSpaces,
     getSpaceProcessCount,
   } = useProcessStore()
-
+  
+  // 기준 정보 가져오기
+  const hasDecisionCriteria = usePersonalityStore((state) => state.hasDecisionCriteria)
+  const decisionCriteria = usePersonalityStore((state) => state.decisionCriteria)
+  const decisionCriteriaDeclaration = usePersonalityStore((state) => state.decisionCriteriaDeclaration)
+  
   // 선택된 공간만 필터링
   const activeSpaces = selectedSpaces.filter(space => space.isSelected)
 
@@ -140,6 +146,21 @@ export default function ProcessPage() {
             <p className="text-gray-600">
               선택하신 공간별로 원하는 공정을 선택해주세요
             </p>
+            
+            {/* 기준 기반 설명 (기준이 있을 때만 표시) */}
+            {hasDecisionCriteria && decisionCriteria && decisionCriteriaDeclaration && (
+              <div className="mt-6 p-4 bg-argen-50 border-2 border-argen-200 rounded-xl text-left max-w-2xl mx-auto">
+                <h3 className="text-sm font-semibold text-argen-700 mb-2">
+                  선택 기준
+                </h3>
+                <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+                  {decisionCriteriaDeclaration}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  이 기준에 따라 공정 설명이 달라집니다.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* 선택된 공간 요약 */}

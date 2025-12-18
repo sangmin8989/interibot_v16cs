@@ -1,0 +1,339 @@
+{
+  "version": "1.0.0",
+  "description": "성향 지표 → 공정 매핑 테이블",
+  "mappings": {
+    "수납중요도": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["붙박이장", "팬트리", "수납월패널"],
+        "message": "수납 공간을 최소화하고 오픈된 공간을 선호하십니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["closet_builtin", "storage_system"],
+        "avoidProcesses": [],
+        "message": "기본적인 수납 공간 확보가 필요합니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "closet_builtin",
+          "kitchen_storage",
+          "storage_system",
+          "pantry",
+          "wall_storage"
+        ],
+        "avoidProcesses": ["open_shelf"],
+        "message": "체계적인 수납 시스템이 필수입니다. 붙박이장, 팬트리, 수납장 등을 우선 검토하세요."
+      }
+    },
+    "동선중요도": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["layout_change", "structure_change"],
+        "message": "동선보다 분위기나 스타일이 더 중요합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["kitchen_layout", "living_layout"],
+        "avoidProcesses": [],
+        "message": "기본적인 동선 개선이 필요합니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "kitchen_layout",
+          "living_layout",
+          "bathroom_layout",
+          "entrance_design",
+          "flow_optimization"
+        ],
+        "avoidProcesses": [],
+        "message": "동선 최적화가 매우 중요합니다. 주방 삼각동선, 욕실 접근성, 현관 동선을 우선 개선하세요."
+      }
+    },
+    "조명취향": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["indirect_lighting", "mood_lighting", "dimming_system"],
+        "message": "기본 조명만으로 충분합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["living_lighting", "bedroom_lighting"],
+        "avoidProcesses": [],
+        "message": "거실이나 침실 정도 조명에 신경 쓰시는 것이 좋습니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "living_lighting",
+          "indirect_lighting",
+          "mood_lighting",
+          "dimming_system",
+          "bedroom_lighting",
+          "kitchen_lighting"
+        ],
+        "avoidProcesses": [],
+        "message": "조명 감성이 중요합니다. 간접조명, 무드등, 조도 조절 시스템을 필수로 검토하세요."
+      }
+    },
+    "소음민감도": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["soundproof", "door_soundproof", "wall_soundproof"],
+        "message": "소음이 크게 신경 쓰이지 않습니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["bedroom_soundproof"],
+        "avoidProcesses": [],
+        "message": "침실 정도만 방음을 고려하시면 됩니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "bedroom_soundproof",
+          "door_soundproof",
+          "wall_soundproof",
+          "window_soundproof",
+          "floor_soundproof"
+        ],
+        "avoidProcesses": [],
+        "message": "방음이 매우 중요합니다. 방음문, 벽체 방음, 바닥 방음 등을 필수로 검토하세요."
+      }
+    },
+    "관리민감도": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["easy_clean_tile", "easy_clean_countertop"],
+        "message": "디자인이 더 중요하고, 관리는 크게 신경 쓰지 않습니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["bathroom_easy_clean", "kitchen_easy_clean"],
+        "avoidProcesses": [],
+        "message": "너무 힘든 관리는 피하는 정도면 충분합니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "bathroom_easy_clean",
+          "kitchen_easy_clean",
+          "flooring_easy_clean",
+          "wall_easy_clean",
+          "low_maintenance"
+        ],
+        "avoidProcesses": ["glossy_tile", "high_maintenance"],
+        "message": "관리 편의성이 최우선입니다. 무광 타일, 청소 쉬운 상판, 강화마루 등을 우선 검토하세요."
+      }
+    },
+    "스타일고집도": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": ["basic_design", "simple_design"],
+        "avoidProcesses": ["custom_design", "premium_design"],
+        "message": "무난하고 실용적인 디자인으로 충분합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["wall_design", "color_design"],
+        "avoidProcesses": [],
+        "message": "트렌드를 따라가는 정도의 스타일을 원하십니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "wall_design",
+          "custom_furniture",
+          "accent_wall",
+          "premium_design",
+          "style_coordination"
+        ],
+        "avoidProcesses": ["generic_design"],
+        "message": "특정 스타일 완성이 중요합니다. 맞춤 가구, 포인트 컬러, 디자인 조명 등을 우선 검토하세요."
+      }
+    },
+    "색감취향": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["accent_color", "color_coordination"],
+        "message": "화이트 톤이면 충분합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["wall_color", "accent_wall"],
+        "avoidProcesses": [],
+        "message": "우드 톤 또는 베이지 정도의 색감을 고려하시면 좋습니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "wall_color",
+          "accent_wall",
+          "accent_color",
+          "color_coordination",
+          "custom_color"
+        ],
+        "avoidProcesses": [],
+        "message": "색감이 중요합니다. 포인트 컬러, 색상 조합, 맞춤 컬러 등을 우선 검토하세요."
+      }
+    },
+    "가족영향도": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["family_space", "kids_space"],
+        "message": "본인 위주의 공간 구성이 적합합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["living_layout", "family_space"],
+        "avoidProcesses": [],
+        "message": "가족을 일부 고려한 공간 구성이 필요합니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "living_layout",
+          "family_space",
+          "kids_room",
+          "kids_safety",
+          "storage_kids",
+          "bathroom_family"
+        ],
+        "avoidProcesses": [],
+        "message": "가족 중심 설계가 최우선입니다. 아이, 부모님을 고려한 안전, 수납, 동선 등을 우선 검토하세요."
+      }
+    },
+    "반려동물영향도": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": [],
+        "avoidProcesses": ["pet_friendly", "durable_flooring"],
+        "message": "반려동물 고려가 불필요합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["flooring_durable"],
+        "avoidProcesses": [],
+        "message": "반려동물을 일부 고려한 바닥재를 선택하시면 좋습니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "flooring_durable",
+          "wall_durable",
+          "pet_friendly",
+          "pet_zone",
+          "easy_clean_pet"
+        ],
+        "avoidProcesses": ["glossy_flooring", "soft_wallpaper"],
+        "message": "반려동물이 최우선입니다. 바닥재, 벽지, 수납 등을 반려동물 중심으로 설계하세요."
+      }
+    },
+    "예산탄력성": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": ["essential_only", "cost_effective"],
+        "avoidProcesses": ["premium_materials", "luxury_design"],
+        "message": "필수만, 가성비를 최우선으로 합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["standard_grade", "balanced_investment"],
+        "avoidProcesses": [],
+        "message": "합리적 범위 내에서 투자하시는 것이 좋습니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "premium_materials",
+          "quality_investment",
+          "premium_grade",
+          "luxury_design"
+        ],
+        "avoidProcesses": ["basic_grade"],
+        "message": "가치 있으면 투자 가능합니다. 프리미엄 자재, 고급 마감, 맞춤 디자인 등을 검토하세요."
+      }
+    },
+    "공사복잡도수용성": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": ["painting", "wallpaper", "flooring_simple"],
+        "avoidProcesses": ["wall_removal", "structure_change", "bathroom_expansion"],
+        "message": "간단한 공사만 원하십니다. 도배, 장판, 조명 정도가 적합합니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["door_change", "closet_builtin", "layout_minor"],
+        "avoidProcesses": [],
+        "message": "일부 구조 변경이 가능합니다. 방문 교체, 붙박이장 정도는 수용 가능합니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "wall_removal",
+          "structure_change",
+          "bathroom_expansion",
+          "kitchen_expansion",
+          "layout_major"
+        ],
+        "avoidProcesses": [],
+        "message": "구조 변경을 수용합니다. 벽 철거, 욕실 확장, 대규모 동선 변경 등이 가능합니다."
+      }
+    },
+    "집값방어의식": {
+      "low": {
+        "range": [0, 33],
+        "recommendedProcesses": ["personal_preference"],
+        "avoidProcesses": ["resale_focus"],
+        "message": "실거주 만족이 최우선입니다."
+      },
+      "medium": {
+        "range": [34, 66],
+        "recommendedProcesses": ["standard_upgrade", "moderate_investment"],
+        "avoidProcesses": ["extreme_customization"],
+        "message": "너무 특이한 건 피하는 정도면 충분합니다."
+      },
+      "high": {
+        "range": [67, 100],
+        "recommendedProcesses": [
+          "kitchen_upgrade",
+          "bathroom_upgrade",
+          "flooring_quality",
+          "resale_focus",
+          "market_value"
+        ],
+        "avoidProcesses": ["personal_only"],
+        "message": "집값 방어가 중요합니다. 주방, 욕실, 바닥 투자를 우선하고, 대중적 취향을 고려하세요."
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

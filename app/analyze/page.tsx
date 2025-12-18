@@ -304,10 +304,17 @@ function AnalyzePageContent() {
           </button>
           <button
             onClick={handleNext}
-            disabled={!answers[currentQuestion.area]}
-            className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-base min-h-[52px]"
+            disabled={!answers[currentQuestion.area] || isAnalyzing}
+            className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-base min-h-[52px] flex items-center justify-center gap-2"
           >
-            {currentStep < questions.length - 1 ? '다음' : '분석 시작'}
+            {isAnalyzing ? (
+              <>
+                <span className="animate-spin text-xl">⏳</span>
+                <span>분석 중...</span>
+              </>
+            ) : (
+              currentStep < questions.length - 1 ? '다음' : '분석 시작'
+            )}
           </button>
         </div>
 

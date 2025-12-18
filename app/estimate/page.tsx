@@ -1,8 +1,16 @@
 'use client'
 
+/**
+ * ⚠️ DEPRECATED: 4등급 견적 페이지 (헌법 v1에 따라 사용 중단)
+ * 
+ * 새로운 견적 페이지: /onboarding/estimate
+ * 헌법 v1: 등급 시스템 전면 폐기, 아르젠 기준 단일 견적만 사용
+ */
+
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { getDefaultProcessesByAreas, type AreaType } from '@/lib/utils/processMapper'
+import { resetEverything } from '@/lib/utils/resetAllStores'
 
 function EstimatePageContent() {
   const searchParams = useSearchParams()
@@ -981,10 +989,15 @@ function EstimatePageContent() {
         {/* 액션 버튼 */}
         <div className="flex gap-4 justify-center">
           <button
-            onClick={() => router.push('/')}
+            onClick={() => {
+              if (confirm('모든 입력 정보를 초기화하고 처음부터 다시 시작하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+                resetEverything()
+                router.push('/')
+              }
+            }}
             className="px-6 py-3 bg-white/80 border border-argen-200 text-argen-700 rounded-xl hover:bg-argen-50 transition-all font-medium"
           >
-            다시 시작
+            🔄 새로 시작하기
           </button>
           <button
             onClick={() => router.push(`/result?${searchParams.toString()}`)}
