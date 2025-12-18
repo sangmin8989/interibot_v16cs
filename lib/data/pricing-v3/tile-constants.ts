@@ -21,3 +21,4 @@ export const TILE_LABOR_PRICE_PER_TEAM = 650000  // 650,000원/조
 
 
 
+

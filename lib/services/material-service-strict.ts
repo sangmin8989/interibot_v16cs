@@ -29,9 +29,16 @@ export async function getMaterialPriceStrict(
 ): Promise<NonNullable<MaterialDbResult['data']>> {
   try {
     // 헌법 v1: DB 값 그대로 호출, 추정/보정/평균 금지
+    // 등급별 브랜드 컬럼 선택 (V4 전용)
+    const brandColumn = request.brandCondition?.brandColumn || 'brand_argen'
+    
+    // 브랜드 컬럼 목록 (select에 포함)
+    const brandColumns = ['brand_basic', 'brand_standard', 'brand_argen', 'brand_premium']
+    const selectFields = `id, material_code, phase_id, category_1, category_2, category_3, product_name, ${brandColumns.join(', ')}, unit, is_argen_standard, argen_priority, price_argen, price`
+    
     let query = supabase
       .from('materials')
-      .select('id, material_code, phase_id, category_1, category_2, category_3, product_name, brand_argen, unit, is_argen_standard, argen_priority, price_argen, price')
+      .select(selectFields)
       .eq('is_active', true)
       .eq('category_1', request.category.category1)
       .eq('category_2', request.category.category2)
@@ -42,7 +49,14 @@ export async function getMaterialPriceStrict(
 
     // 아르젠 기준
     query = query.eq('is_argen_standard', true)
-    query = query.order('argen_priority', { ascending: true, nullsFirst: false })
+    
+    // 등급별 브랜드 컬럼이 null이 아닌 자재만 조회
+    query = query.not(brandColumn, 'is', null)
+    
+    // 정렬: ARGEN_E는 가격 오름차순, 나머지는 내림차순
+    const isAscending = brandColumn === 'brand_basic'
+    query = query.order('price', { ascending: isAscending, nullsFirst: false })
+    
     query = query.limit(1)
 
     const { data, error } = await query.maybeSingle()
@@ -64,6 +78,10 @@ export async function getMaterialPriceStrict(
     }
 
     // ✅ 헌법 v1 봉인: 가격이 없거나 0이면 즉시 실패
+    // 등급별 브랜드 컬럼에 해당하는 가격 사용
+    const brandPriceKey = brandColumn === 'brand_basic' ? 'price' : 
+                         brandColumn === 'brand_standard' ? 'price' :
+                         brandColumn === 'brand_argen' ? 'price_argen' : 'price'
     const finalPrice = data.price ?? data.price_argen ?? null
 
     // ✅ 가격 검증: 0이거나 null이면 즉시 throw
@@ -75,10 +93,13 @@ export async function getMaterialPriceStrict(
     }
 
     // ✅ SUCCESS만 반환
+    // 등급별 브랜드명 선택
+    const brandName = data[brandColumn] || data.brand_argen || data.brand_name || ''
+    
     return {
       materialId: data.material_id || data.id,
       materialCode: data.material_code,
-      brandName: data.brand_argen || data.brand_name || '',
+      brandName,
       productName: data.product_name,
       spec: request.spec || '',
       category1: data.category_1,
@@ -101,6 +122,7 @@ export async function getMaterialPriceStrict(
     })
   }
 }
+
 
 
 

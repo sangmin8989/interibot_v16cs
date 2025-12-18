@@ -134,6 +134,8 @@ export interface MaterialRequest {
     isArgenStandard: true;
     /** 내부 우선순위 (낮을수록 우선) */
     priority?: number;
+    /** 등급별 브랜드 컬럼 (V4 전용) */
+    brandColumn?: 'brand_basic' | 'brand_standard' | 'brand_argen' | 'brand_premium';
   };
   
   /** 수량 산정 기준 */
@@ -662,6 +664,7 @@ export class EstimateValidationError extends Error {
     this.reason = params.reason
   }
 }
+
 
 
 

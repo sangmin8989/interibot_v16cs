@@ -111,6 +111,13 @@ export const useSpaceInfoStore = create<SpaceInfoStore>()(
           livingPurpose: info.livingPurpose || '입력안함',
           livingYears: info.livingYears,
           additionalNotes: info.additionalNotes || '', // 추가 정보
+          // V5 명세서 필드
+          buildingYear: info.buildingYear,
+          ownership: info.ownership,
+          stayPlan: info.stayPlan,
+          cookFreq: info.cookFreq,
+          purpose: info.purpose,
+          remoteWork: info.remoteWork,
           timestamp: new Date().toISOString(),
         }
         

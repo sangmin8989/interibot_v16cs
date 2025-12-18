@@ -108,7 +108,15 @@ function PersonalityContent() {
       await new Promise(resolve => setTimeout(resolve, 300))
       
       setLoadingProgress(40)
-      const response = await fetch('/api/generate-questions', {
+      
+      // V5 엔진 사용 여부 확인 (환경 변수 또는 기본값)
+      const useV5Engine = process.env.NEXT_PUBLIC_USE_V5_ENGINE === 'true' || true // 기본값: true
+      
+      const apiEndpoint = useV5Engine 
+        ? '/api/generate-questions/v5'
+        : '/api/generate-questions'
+      
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -330,42 +338,86 @@ function PersonalityContent() {
           totalPeople: spaceInfo.totalPeople,
         } : null
 
-        // Phase 2: 서버 전송 시 answerState 포함
-        const answersPayload = Object.values(answers).map((answer) => ({
-          questionId: answer.questionId,
-          answerState: answer.answerState,
-          answerValue: answer.answerValue,  // NORMAL일 때만 존재
-        }))
-
-        console.log('📤 API 전송 데이터:', {
-          mode: selectedMode,
-          answers: answersPayload,
-          spaceInfo: spaceInfoPayload,
-          vibeInput: selectedMode === 'vibe' ? { mbti, bloodType, birthdate } : null
-        })
-
-        const response = await fetch('/api/analysis/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: selectedMode,
-            answers: answersPayload,  // Phase 2: QuestionAnswer[] 형식
-            spaceInfo: spaceInfoPayload,
-            vibeInput: selectedMode === 'vibe' ? {
-              mbti: mbti,
-              bloodType: bloodType,
-              birthdate: birthdate
-            } : null
-          })
-        })
+        // V5 엔진 사용 여부 확인
+        const useV5Engine = process.env.NEXT_PUBLIC_USE_V5_ENGINE === 'true' || true // 기본값: true
         
-        if (response.ok) {
-          const result = await response.json()
-          console.log('✅ AI 분석 완료:', result)
-          // 분석 결과는 API에서 자동으로 Store에 저장됨
+        if (useV5Engine) {
+          // V5 엔진: 답변을 간단한 형식으로 변환
+          const v5Answers: Record<string, string> = {}
+          Object.values(answers).forEach((answer) => {
+            if (answer.answerState === 'NORMAL' && answer.answerValue) {
+              v5Answers[answer.questionId] = answer.answerValue
+            }
+          })
+
+          console.log('📤 V5 API 전송 데이터:', {
+            spaceInfo: spaceInfoPayload,
+            answersCount: Object.keys(v5Answers).length,
+          })
+
+          const response = await fetch('/api/analysis/v5', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              spaceInfo: spaceInfoPayload,
+              answers: v5Answers,
+            }),
+          })
+
+          if (response.ok) {
+            const result = await response.json()
+            console.log('✅ V5 분석 완료:', result)
+            
+            // V5 결과 Store에 저장
+            if (result.success && result.result) {
+              setV5Result(result.result)
+              console.log('💾 V5 결과 저장 완료:', {
+                tags: result.result.tags.tags,
+                validation: result.result.validation.passed,
+              })
+            }
+          } else {
+            const errorData = await response.json()
+            console.error('❌ V5 분석 실패:', errorData)
+          }
         } else {
-          const errorData = await response.json()
-          console.error('❌ AI 분석 실패:', errorData)
+          // 기존 엔진: Phase 2 형식 유지
+          const answersPayload = Object.values(answers).map((answer) => ({
+            questionId: answer.questionId,
+            answerState: answer.answerState,
+            answerValue: answer.answerValue,  // NORMAL일 때만 존재
+          }))
+
+          console.log('📤 API 전송 데이터:', {
+            mode: selectedMode,
+            answers: answersPayload,
+            spaceInfo: spaceInfoPayload,
+            vibeInput: selectedMode === 'vibe' ? { mbti, bloodType, birthdate } : null
+          })
+
+          const response = await fetch('/api/analysis/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: selectedMode,
+              answers: answersPayload,  // Phase 2: QuestionAnswer[] 형식
+              spaceInfo: spaceInfoPayload,
+              vibeInput: selectedMode === 'vibe' ? {
+                mbti: mbti,
+                bloodType: bloodType,
+                birthdate: birthdate
+              } : null
+            })
+          })
+          
+          if (response.ok) {
+            const result = await response.json()
+            console.log('✅ AI 분석 완료:', result)
+            // 분석 결과는 API에서 자동으로 Store에 저장됨
+          } else {
+            const errorData = await response.json()
+            console.error('❌ AI 분석 실패:', errorData)
+          }
         }
       } catch (error) {
         console.error('❌ AI 분석 오류:', error)

@@ -148,3 +148,4 @@ WHERE (daily_rate IS NULL OR daily_rate <= 0 OR is_current != true);
 
 
 
+

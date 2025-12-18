@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { AnalysisMode } from '@/lib/data/personalityQuestions'
+import type { V5AnalysisResult } from '@/lib/analysis/v5'
 
 // 문자열 ID를 지원하도록 변경 (백엔드 분석 엔진과 호환)
 export interface PersonalityAnswer {
@@ -14,6 +15,8 @@ export interface PersonalityAnalysis {
   mode: AnalysisMode
   answers: PersonalityAnswer[]
   completedAt: string
+  // V5 결과 (선택적)
+  v5Result?: V5AnalysisResult
 }
 
 export interface VibeData {
@@ -40,6 +43,9 @@ interface PersonalityStore {
   clearVibeData: () => void
   setHasDecisionCriteria: (hasCriteria: boolean) => void  // 기준 생성 여부 설정
   setDecisionCriteria: (criteria: string | null, declaration: string | null) => void  // 기준 및 선언 문장 설정
+  // V5 결과 저장
+  setV5Result: (result: import('@/lib/analysis/v5').V5AnalysisResult) => void
+  getV5Result: () => import('@/lib/analysis/v5').V5AnalysisResult | null
 }
 
 export const usePersonalityStore = create<PersonalityStore>()(
@@ -157,6 +163,23 @@ export const usePersonalityStore = create<PersonalityStore>()(
           decisionCriteriaDeclaration: declaration,
           hasDecisionCriteria: criteria !== null
         })
+      },
+      
+      // V5 결과 저장
+      setV5Result: (result) => {
+        const current = get().analysis
+        if (current) {
+          set({
+            analysis: {
+              ...current,
+              v5Result: result,
+            },
+          })
+        }
+      },
+      
+      getV5Result: () => {
+        return get().analysis?.v5Result || null
       },
     }),
     {

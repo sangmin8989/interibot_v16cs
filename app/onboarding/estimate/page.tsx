@@ -1,50 +1,62 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import StepIndicator from '@/components/onboarding/StepIndicator'
 import { useSpaceInfoStore } from '@/lib/store/spaceInfoStore'
 import { usePersonalityStore } from '@/lib/store/personalityStore'
 import { useProcessStore } from '@/lib/store/processStore'
 import { useScopeStore } from '@/lib/store/scopeStore'
+import { applyTagsToEstimate } from '@/lib/analysis/v5/tag-estimate-connector'
 import { PROCESS_DEFINITIONS } from '@/constants/process-definitions'
 import { SPACE_NAMES } from '@/constants/spaces'
 
 // 공정별 Before/After 이미지 생성 타입
 type ProcessImageType = '철거' | '주방' | '욕실' | '타일' | '목공' | '전기' | '도배' | '필름'
 
-// ✅ V3 계산기 사용 (새로운 아르젠 단가 시스템)
-import { 
-  calculateFullEstimateV3, 
-  type FullEstimateV3,
-  type EstimateInputV3,
-  type SelectedSpace as V3SelectedSpace,
-} from '@/lib/estimate/calculator-v3'
-import { 
-  Grade, 
-  formatWon, 
-  GRADES 
-} from '@/lib/data/pricing-v3'
+// ✅ V4 견적 엔진 사용
+import type { UIEstimateV4 } from '@/lib/estimate-v4/types'
+import type { V4EstimateRequest, V4EstimateResult as V4EstimateResultType } from '@/lib/estimate-v4/types/v4-estimate-types'
 import type { SpaceId, ProcessCategory } from '@/types/spaceProcess'
 
-// 등급 타입 (소문자)
-type GradeKey = 'basic' | 'standard' | 'argen' | 'premium';
+// V4 등급 타입 (3등급)
+type GradeKeyV4 = 'argen_e' | 'argen_s' | 'argen_o'
 
-// 등급 매핑
-const GRADE_MAP: Record<GradeKey, Grade> = {
-  basic: 'BASIC',
-  standard: 'STANDARD',
-  argen: 'ARGEN',
-  premium: 'PREMIUM'
-};
+// V4 등급 정보
+const V4_GRADE_INFO: Record<GradeKeyV4, {
+  icon: string
+  title: string
+  color: string
+  bgColor: string
+  description: string
+}> = {
+  argen_e: {
+    icon: '💎',
+    title: 'ARGEN A',
+    color: 'text-blue-700',
+    bgColor: 'bg-blue-100',
+    description: '합리적인 가성비'
+  },
+  argen_s: {
+    icon: '⭐',
+    title: 'ARGEN S',
+    color: 'text-purple-700',
+    bgColor: 'bg-purple-100',
+    description: '균형 잡힌 품질과 가격'
+  },
+  argen_o: {
+    icon: '👑',
+    title: 'ARGEN O',
+    color: 'text-amber-700',
+    bgColor: 'bg-amber-100',
+    description: '프리미엄 맞춤형'
+  }
+}
 
-// 4등급 견적 결과
-interface AllGradesEstimate {
-  basic: FullEstimateV3;
-  standard: FullEstimateV3;
-  argen: FullEstimateV3;
-  premium: FullEstimateV3;
-  recommended: GradeKey;
+// V4 견적 결과 (로컬 타입 - UIEstimateV4와 recommendedGrade를 함께 저장)
+interface V4EstimateResultLocal {
+  estimate: UIEstimateV4
+  recommendedGrade: GradeKeyV4
 }
 
 // 세부옵션 localStorage 키
@@ -161,13 +173,20 @@ function EstimatePageContent() {
   const { spaceInfo } = useSpaceInfoStore()
   const { analysis: personalityAnalysis } = usePersonalityStore()
   // ✅ 공정별 선택 데이터
-  const { selectedProcessesBySpace, tierSelections } = useProcessStore()
+  const { selectedProcessesBySpace } = useProcessStore()
   const { selectedSpaces } = useScopeStore()
   
-  const [estimates, setEstimates] = useState<AllGradesEstimate | null>(null)
+  const [v4Estimate, setV4Estimate] = useState<V4EstimateResultLocal | null>(null)
   const [isCalculating, setIsCalculating] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedGrade, setSelectedGrade] = useState<GradeKey | null>(null)
+  const [selectedGrade, setSelectedGrade] = useState<GradeKeyV4 | null>(null)
+  const [estimatesByGrade, setEstimatesByGrade] = useState<Record<GradeKeyV4, UIEstimateV4 | null>>({
+    argen_e: null,
+    argen_s: null,
+    argen_o: null,
+  })
+  const [calculatingGrade, setCalculatingGrade] = useState<GradeKeyV4 | null>(null)
+  const [baseInputData, setBaseInputData] = useState<any>(null) // 초기 계산 데이터 저장
   const [activeTab, setActiveTab] = useState<'summary' | 'detail'>('summary')
   const [detailOptions, setDetailOptions] = useState<any>(null)
   const [isHydrated, setIsHydrated] = useState(false)
@@ -287,23 +306,8 @@ function EstimatePageContent() {
     console.log('📍 scopeStore.selectedSpaces:', selectedSpaces)
     console.log('📍 선택된 공간:', selectedSpaces.filter(s => s.isSelected).map(s => ({ id: s.id, name: s.name })))
     console.log('📍 processStore.selectedProcessesBySpace:', selectedProcessesBySpace)
-    console.log('📍 processStore.tierSelections:', tierSelections)
-    
-    // ✅ localStorage 직접 확인
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('space-info-storage')
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored)
-          console.log('💾 localStorage 직접 확인:', parsed?.state?.spaceInfo?.pyeong)
-        } catch (e) {
-          console.error('❌ localStorage 파싱 실패:', e)
-        }
-      }
-    }
-    
     console.log('==========================================')
-  }, [selectedSpaces, selectedProcessesBySpace, tierSelections, isHydrated, spaceInfo])
+  }, [selectedSpaces, selectedProcessesBySpace, isHydrated, spaceInfo])
   
   // ✅ 세부옵션 로드 (주방, 욕실 등)
   useEffect(() => {
@@ -377,28 +381,9 @@ function EstimatePageContent() {
   
   const selectedProcessList = extractSelectedProcesses()
   
-  // ✅ 선택된 공정 목록 (tierSelections에서 enabled된 것만 - A안 호환)
-  const enabledProcessList = Object.entries(tierSelections || {})
-    .filter(([_, selection]) => selection && selection.enabled)
-    .map(([processId, selection]) => ({
-      id: processId,
-      name: PROCESS_NAMES[processId] || processId,
-      icon: PROCESS_ICONS[processId] || '📦',
-      tier: selection.tier,
-      tierName: TIER_NAMES[selection.tier] || selection.tier,
-    }))
-  
-  // ✅ 어떤 데이터가 있는지 확인
+  // ✅ 선택된 공정 목록 (공간 기반만 사용)
   const useSpaceBasedProcesses = selectedProcessList.length > 0
-  const useTierBasedProcesses = enabledProcessList.length > 0 && !useSpaceBasedProcesses
 
-  // 등급별 정보
-  const gradeInfo: Record<GradeKey, { icon: string; title: string; color: string; bgColor: string; description: string }> = {
-    basic: { icon: '💰', title: '실속형', color: 'text-gray-700', bgColor: 'bg-gray-100', description: '가격 대비 실용성 중심' },
-    standard: { icon: '⭐', title: '표준형', color: 'text-blue-700', bgColor: 'bg-blue-100', description: '품질과 가격의 균형' },
-    argen: { icon: '🏆', title: '아르젠', color: 'text-argen-600', bgColor: 'bg-purple-100', description: '맞춤 제작 프리미엄' },
-    premium: { icon: '💎', title: '프리미엄', color: 'text-amber-700', bgColor: 'bg-amber-100', description: '최고급 브랜드 자재' }
-  }
 
   // 견적 계산 (hydration 완료 후)
   useEffect(() => {
@@ -426,11 +411,26 @@ function EstimatePageContent() {
         setIsCalculating(true)
         setError(null)
 
-        // ✅ 평수 결정 로직 개선 - approximateRange도 고려
-        let py = spaceInfo.pyeong || 0
+        // 🔍 디버깅: scopeStore.selectedSpaces 확인 (API 호출 전)
+        console.log('🔍 [1] scopeStore.selectedSpaces:', JSON.stringify(selectedSpaces, null, 2))
+        console.log('🔍 [2] 필터링 결과:', selectedSpaces.filter(s => s.isSelected))
+
+        // ✅ 헌법: 고객이 직접 입력한 평수는 절대 변경하지 않음
+        // inputMethod가 'exact'이면 고객이 직접 입력한 평수
+        const isCustomerInput = spaceInfo.inputMethod === 'exact' && spaceInfo.pyeong > 0
         
-        // 정확한 평수가 없으면 approximateRange에서 대표값 추출
-        if (py <= 0 && spaceInfo.approximateRange) {
+        let py: number
+        
+        if (isCustomerInput) {
+          // 🔒 헌법: 고객 입력 평수는 절대 변경 금지
+          py = spaceInfo.pyeong
+          console.log('🔒 헌법: 고객이 직접 입력한 평수 사용 (절대 변경 금지):', py)
+        } else if (spaceInfo.pyeong > 0) {
+          // 평수가 있지만 exact가 아닌 경우도 사용 (하지만 exact가 우선)
+          py = spaceInfo.pyeong
+          console.log('📏 저장된 평수 사용:', py)
+        } else if (spaceInfo.approximateRange) {
+          // 정확한 평수가 없으면 approximateRange에서 대표값 추출
           const approximateToActual: Record<string, number> = {
             '20평대': 25,
             '30평대': 34, 
@@ -439,10 +439,8 @@ function EstimatePageContent() {
           }
           py = approximateToActual[spaceInfo.approximateRange] || 34
           console.log(`📏 대략 평형 "${spaceInfo.approximateRange}"을 ${py}평으로 변환`)
-        }
-        
-        // 여전히 평수가 없으면 최종 기본값 사용
-        if (py <= 0) {
+        } else {
+          // 여전히 평수가 없으면 최종 기본값 사용
           py = 34
           console.warn('⚠️ 평수 정보가 없어 기본값 34평을 사용합니다.')
         }
@@ -452,8 +450,20 @@ function EstimatePageContent() {
           대략평형: spaceInfo.approximateRange,
           최종사용평수: py,
           입력방식: spaceInfo.inputMethod,
+          고객직접입력여부: isCustomerInput,
           전체spaceInfo: spaceInfo 
         })
+        
+        // 🔒 헌법: 고객 입력 평수 검증 (절대 변경 금지)
+        if (isCustomerInput && py !== spaceInfo.pyeong) {
+          console.error('🚨 헌법 위반: 고객 입력 평수가 변경되었습니다!', {
+            원본평수: spaceInfo.pyeong,
+            변경된평수: py,
+          })
+          // 강제로 원본 평수로 복원
+          py = spaceInfo.pyeong
+          console.log('✅ 원본 평수로 복원:', py)
+        }
         
         // ✅ 방/욕실 개수 결정 로직 개선
         let roomCount = spaceInfo?.rooms || 0
@@ -487,8 +497,15 @@ function EstimatePageContent() {
           .filter(space => space.isSelected)
           .map(space => space.id)
         
-        // SpaceId를 V3SelectedSpace로 매핑
-        const mapSpaceIdToV3 = (spaceId: SpaceId): V3SelectedSpace | null => {
+        console.log('🔍 선택된 공간 확인:', {
+          selectedSpacesCount: selectedSpaces.length,
+          selectedSpaceIdsCount: selectedSpaceIds.length,
+          selectedSpaceIds,
+          selectedSpaces: selectedSpaces.map(s => ({ id: s.id, name: s.name, isSelected: s.isSelected })),
+        })
+        
+        // SpaceId를 V4 형식으로 변환
+        const mapSpaceIdToV4 = (spaceId: SpaceId): string | null => {
           switch (spaceId) {
             case 'living': return 'living'
             case 'kitchen': return 'kitchen'
@@ -501,7 +518,7 @@ function EstimatePageContent() {
             case 'room3':
             case 'room4':
             case 'room5':
-              return 'room'
+              return 'bedroom'
             case 'dressRoom':
               return 'storage'
             default:
@@ -509,14 +526,59 @@ function EstimatePageContent() {
           }
         }
         
-        // 중복 제거된 V3 선택 공간
-        const v3SelectedSpaces: V3SelectedSpace[] = [
+        // 중복 제거된 V4 선택 공간
+        let v4SelectedSpacesFromIds = [
           ...new Set(
             selectedSpaceIds
-              .map(mapSpaceIdToV3)
-              .filter((s): s is V3SelectedSpace => s !== null)
+              .map(mapSpaceIdToV4)
+              .filter((s): s is string => s !== null)
           )
         ]
+        
+        // ✅ 폴백: 선택된 공간이 없으면 필수 공간 자동 선택
+        if (v4SelectedSpacesFromIds.length === 0) {
+          console.warn('⚠️ 선택된 공간이 없음 - 필수 공간 자동 선택')
+          
+          // 필수 공간 이름 목록
+          const essentialSpaceNames = ['거실', '주방', '침실', '욕실']
+          
+          // 필수 공간에 해당하는 공간 찾기
+          const essentialSpaceIds = selectedSpaces
+            .filter(s => essentialSpaceNames.some(name => s.name.includes(name)))
+            .map(s => s.id)
+          
+          // V4 형식으로 변환
+          v4SelectedSpacesFromIds = [
+            ...new Set(
+              essentialSpaceIds
+                .map(mapSpaceIdToV4)
+                .filter((s): s is string => s !== null)
+            )
+          ]
+          
+          // 그래도 없으면 모든 공간 선택
+          if (v4SelectedSpacesFromIds.length === 0) {
+            console.warn('⚠️ 필수 공간도 없음 - 모든 공간 자동 선택')
+            v4SelectedSpacesFromIds = [
+              ...new Set(
+                selectedSpaces
+                  .map(s => mapSpaceIdToV4(s.id))
+                  .filter((s): s is string => s !== null)
+              )
+            ]
+          }
+          
+          console.log('✅ 자동 선택된 공간:', v4SelectedSpacesFromIds)
+          
+          // 사용자 알림 (경고 메시지로 표시)
+          const autoSelectedNames = selectedSpaces
+            .filter(s => v4SelectedSpacesFromIds.some(v4 => mapSpaceIdToV4(s.id) === v4))
+            .map(s => s.name)
+          
+          console.warn(`⚠️ 공간을 선택하지 않아서 기본 공간(${autoSelectedNames.join(', ')})으로 계산했습니다.`)
+        } else {
+          console.log('✅ V4 선택 공간:', v4SelectedSpacesFromIds)
+        }
         
         // ✅ 핵심 수정: 선택된 공간에 해당하는 공정만 필터링
         // selectedSpaceIds에 포함된 공간의 공정만 사용
@@ -530,7 +592,32 @@ function EstimatePageContent() {
           console.log('🔍 선택된 공간의 공정만 필터링:', Object.keys(filteredProcessesBySpace))
         }
         
-        // ✅ 1차: filteredProcessesBySpace에서 공정 추출 (선택된 공간만!)
+        // ✅ V5 태그 결과 적용 (있는 경우) - 공정 필터링 후
+        const v5AnalysisResult = usePersonalityStore.getState().analysis?.v5Result
+        if (v5AnalysisResult && v5AnalysisResult.processChanges) {
+          console.log('🎯 V5 태그 결과 적용:', {
+            tags: v5AnalysisResult.tags.tags,
+            processChanges: v5AnalysisResult.processChanges.processChanges.length,
+          })
+          
+          // V5 태그 기반 공정 자동 선택
+          applyTagsToEstimate(
+            v5AnalysisResult.processChanges,
+            selectedSpaceIds as any
+          )
+          
+          // processStore 업데이트 후 다시 가져오기
+          const updatedProcesses = useProcessStore.getState().selectedProcessesBySpace
+          // filteredProcessesBySpace에 V5 결과 반영
+          for (const [spaceId, selections] of Object.entries(updatedProcesses)) {
+            if (selectedSpaceIds.includes(spaceId as SpaceId)) {
+              filteredProcessesBySpace[spaceId] = selections
+            }
+          }
+          console.log('✅ V5 태그 기반 공정 적용 완료')
+        }
+        
+        // ✅ 1차: filteredProcessesBySpace에서 공정 추출 (선택된 공간만!) - V5 결과 반영 후
         let enabledProcessIds: string[] = []
         
         if (Object.keys(filteredProcessesBySpace).length > 0) {
@@ -579,102 +666,190 @@ function EstimatePageContent() {
           }
         }
         
-        // ✅ 2차: tierSelections에서 공정 추출 (A안 - B안 없을 때)
-        if (enabledProcessIds.length === 0) {
-          enabledProcessIds = Object.entries(tierSelections || {})
-            .filter(([_, selection]) => selection && selection.enabled)
-            .map(([processId]) => processId)
-          if (enabledProcessIds.length > 0) {
-            console.log('🔄 A안: tierSelections에서 공정 추출:', enabledProcessIds)
-          }
-        }
-        
         console.log('🏠 선택된 공간:', selectedSpaceIds)
-        console.log('🔧 최종 공정:', enabledProcessIds)
         console.log('📦 세부옵션:', detailOptions)
 
-        // ✅ 3차: 공정 없으면 선택된 공간 기준으로 공정 추론
-        let finalProcessIds = enabledProcessIds
-        if (finalProcessIds.length === 0 && v3SelectedSpaces.length > 0) {
-          const inferredProcesses: string[] = []
-          if (v3SelectedSpaces.includes('kitchen')) inferredProcesses.push('kitchen')
-          if (v3SelectedSpaces.includes('bathroom')) inferredProcesses.push('bathroom')
-          if (v3SelectedSpaces.includes('living') || v3SelectedSpaces.includes('room')) {
-            inferredProcesses.push('finish')
+        // ✅ V4 API 호출 준비
+        // 1. 성향 분석 답변 변환
+        const answers = personalityAnalysis?.answers.map(a => ({
+          questionId: a.questionId,
+          answerId: a.answer,  // answer를 answerId로 사용
+          value: a.answer,
+        })) || []
+
+        // 2. 선택된 공간 ID 목록 (V4 형식) - 이미 변환됨
+        const v4SelectedSpaces = v4SelectedSpacesFromIds
+
+        // 3. 선택된 공정 변환 (공간별)
+        const v4SelectedProcesses: Record<string, string[]> = {}
+        Object.entries(filteredProcessesBySpace).forEach(([spaceId, selections]) => {
+          const v4SpaceId = v4SelectedSpaces.find(s => s === spaceId) || spaceId
+          const processIds: string[] = []
+          
+          Object.entries(selections).forEach(([category, value]) => {
+            if (value && value !== 'none') {
+              // 카테고리 → V4 공정 ID 매핑
+              if (category === 'kitchen_core') processIds.push('kitchen_core')
+              if (category === 'bathroom_core') processIds.push('bathroom_waterproof')
+              if (category === 'wall_finish') processIds.push('wallpaper')
+              if (category === 'floor_finish') processIds.push('flooring')
+              if (category === 'electric_lighting') processIds.push('lighting')
+              if (category === 'entrance_core') processIds.push('storage_system')
+            }
+          })
+          
+          if (processIds.length > 0) {
+            v4SelectedProcesses[v4SpaceId] = processIds
           }
-          if (v3SelectedSpaces.includes('entrance')) inferredProcesses.push('entrance')
-          if (v3SelectedSpaces.includes('balcony')) inferredProcesses.push('balcony')
-          if (v3SelectedSpaces.includes('storage')) inferredProcesses.push('furniture')
-          finalProcessIds = [...new Set(inferredProcesses)]
-          console.log('🔄 공간 기반 공정 추론:', finalProcessIds)
+        })
+
+        // 4. 선호 설정 (기본값)
+        const hasKitchen = v4SelectedSpaces.includes('kitchen')
+        const preferences = {
+          budget: {
+            min: 0,
+            max: 50000000,
+            flexibility: 'flexible' as const,
+          },
+          family: {
+            totalPeople: roomCount + bathroomCount,
+            hasInfant: false,
+            hasChild: false,
+            hasElderly: false,
+            hasPet: false,
+          },
+          lifestyle: {
+            remoteWork: false,
+            cookOften: hasKitchen,
+            guestsOften: false,
+          },
+          purpose: 'live' as const,
         }
 
-        // ✅ 옵션 설정
-        const includeKitchen = finalProcessIds.includes('kitchen')
-        const includeBathroom = finalProcessIds.includes('bathroom')
-        const includeFinish = finalProcessIds.includes('finish')
-        const includeElectric = finalProcessIds.includes('electric')
-        const includeDoorWindow = finalProcessIds.includes('door_window')
-        const includeFurniture = finalProcessIds.includes('furniture')
-
-        // 기본 입력 옵션
-        // ✅ 핵심: filteredProcessesBySpace 사용 (선택된 공간의 공정만!)
-        const baseInput: Omit<EstimateInputV3, 'grade'> = {
-          py,
-          bathroomCount, // ✅ 개선된 욕실 개수 전달
-          selectedSpaces: v3SelectedSpaces.length > 0 ? v3SelectedSpaces : undefined,
-          enabledProcessIds: finalProcessIds.length > 0 ? finalProcessIds : undefined,
-          detailOptions: detailOptions || undefined,
-          processSelections: Object.keys(filteredProcessesBySpace).length > 0 ? filteredProcessesBySpace : undefined, // ✅ 선택된 공간의 공정만!
-          isExtended: false,
-          closetType: includeFurniture ? 'SWING' : 'SWING',
-          includeFoldingDoor: includeDoorWindow,
-          includeBidet: detailOptions?.욕실옵션?.비데 || false,
-          includeBathtub: detailOptions?.욕실옵션?.욕조 || false,
-          includeDoorlock: includeDoorWindow,
-          includeLighting: includeElectric
+        // ✅ V4 API 요청 데이터 구성 (V4EstimateRequest 타입 사용)
+        const requestBody: V4EstimateRequest = {
+          spaceInfo: {
+            housingType: (spaceInfo.housingType as 'apartment' | 'villa' | 'house' | 'officetel') || 'apartment',
+            pyeong: py,
+            rooms: roomCount,
+            bathrooms: bathroomCount,
+            buildingAge: (spaceInfo as any).buildingAge,
+          },
+          preferences,
+          selectedSpaces: v4SelectedSpaces,
+          selectedProcesses: v4SelectedProcesses,
+          answers,
+          timestamp: new Date().toISOString(),
         }
 
-        console.log('📊 V3 견적 계산 시작:', baseInput)
+        // 5. V4 API 호출
+        console.log('📊 V4 견적 계산 시작:', requestBody)
+
+        const response = await fetch('/api/estimate/v4', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('❌ API 에러:', errorData)
+          throw new Error(errorData.error || errorData.message || `API 에러: ${response.status}`)
+        }
+
+        const apiResult = await response.json()
         
-        // ✅ 고객 정보 최종 확인
-        console.log('👤 고객 정보 최종 확인:', {
-          원본평수: spaceInfo.pyeong,
-          대략평형: spaceInfo.approximateRange,
-          계산평수: py,
-          원본방개수: spaceInfo.rooms,
-          계산방개수: roomCount,
-          원본욕실개수: spaceInfo.bathrooms,
-          계산욕실개수: bathroomCount,
-          입력방식: spaceInfo.inputMethod
+        if (apiResult.status !== 'SUCCESS') {
+          throw new Error(apiResult.message || 'V4 견적 계산 실패')
+        }
+
+        // ✅ API 응답에서 result 추출 (UIEstimateV4 타입)
+        const v4Result: UIEstimateV4 = apiResult.result
+
+        console.log('✅ V4 견적 결과:', {
+          isSuccess: v4Result.isSuccess,
+          grade: v4Result.grade,
+          gradeName: v4Result.gradeName,
+          total: v4Result.total.formatted,
+          breakdownCount: v4Result.breakdown.length,
+          breakdown: v4Result.breakdown.map(b => ({
+            processName: b.processName,
+            amount: b.amount,
+            percentage: b.percentage,
+            materialsCount: b.materials?.length || 0,
+            materials: b.materials?.map(m => ({ name: m.name, quantity: m.quantity, totalPrice: m.totalPrice })) || [],
+            hasLabor: !!b.labor,
+            labor: b.labor ? { type: b.labor.type, amount: b.labor.amount } : null,
+          })),
+        })
+        
+        // ✅ isSuccess 체크
+        if (!v4Result.isSuccess) {
+          console.error('❌ 견적 계산 실패:', v4Result.errorMessage)
+          throw new Error(v4Result.errorMessage || '견적 계산에 실패했습니다.')
+        }
+        
+        // ✅ breakdown 검증
+        if (!v4Result.breakdown || v4Result.breakdown.length === 0) {
+          console.error('❌ breakdown이 비어있음:', {
+            selectedSpaces: v4SelectedSpaces,
+            selectedProcesses: v4SelectedProcesses,
+            v4Result,
+          })
+          throw new Error('견적 계산 결과가 비어있습니다. 공간과 평수를 확인해주세요.')
+        } else {
+          console.log('✅ Breakdown 상세:', v4Result.breakdown)
+        }
+        
+        // ✅ 성공 로그
+        console.log('🎉 견적 계산 완료:', {
+          등급: v4Result.gradeName,
+          총액: v4Result.total.formatted,
+          평당: v4Result.total.perPyeong,
+          공정수: v4Result.breakdown.length,
+          성향점수: v4Result.personalityMatch.score,
+          경고수: v4Result.warnings.length,
         })
 
-        // ✅ 4등급 모두 계산 (비동기 함수이므로 await 필요)
-        const basicEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'BASIC' })
-        const standardEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'STANDARD' })
-        const argenEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'ARGEN' })
-        const premiumEstimate = await calculateFullEstimateV3({ ...baseInput, grade: 'PREMIUM' })
+        // V4 결과 저장
+        const recommendedGrade: GradeKeyV4 = 
+          v4Result.grade === 'ARGEN_E' ? 'argen_e' :
+          v4Result.grade === 'ARGEN_S' ? 'argen_s' :
+          'argen_o'
 
-        // ✅ 안전 체크: summary가 없을 수 있으므로 옵셔널 체이닝 사용
-        console.log('✅ V3 견적 결과:', {
-          평수: py,
-          basic: formatWon(basicEstimate?.summary?.grandTotal || 0),
-          standard: formatWon(standardEstimate?.summary?.grandTotal || 0),
-          argen: formatWon(argenEstimate?.summary?.grandTotal || 0),
-          premium: formatWon(premiumEstimate?.summary?.grandTotal || 0),
-          평당단가_아르젠: `${Math.round((argenEstimate?.summary?.grandTotal || 0) / py / 10000)}만원`
+        // 초기 계산 데이터 저장 (등급 변경 시 재사용)
+        const baseData = {
+          spaceInfo: {
+            housingType: (spaceInfo.housingType as 'apartment' | 'villa' | 'house' | 'officetel') || 'apartment',
+            pyeong: py,
+            rooms: roomCount,
+            bathrooms: bathroomCount,
+            buildingAge: (spaceInfo as any).buildingAge,
+            floor: (spaceInfo as any).floor,
+          },
+          answers,
+          preferences,
+          selectedSpaces: v4SelectedSpaces,
+          selectedProcesses: v4SelectedProcesses,
+        }
+        setBaseInputData(baseData)
+
+        // 추천 등급의 견적 저장
+        const newEstimatesByGrade: Record<GradeKeyV4, UIEstimateV4 | null> = {
+          argen_e: null,
+          argen_s: null,
+          argen_o: null,
+        }
+        newEstimatesByGrade[recommendedGrade] = v4Result
+        setEstimatesByGrade(newEstimatesByGrade)
+
+        setV4Estimate({
+          estimate: v4Result,
+          recommendedGrade,
         })
 
-        setEstimates({
-          basic: basicEstimate,
-          standard: standardEstimate,
-          argen: argenEstimate,
-          premium: premiumEstimate,
-          recommended: 'argen'
-        })
-
-        // 아르젠 자동 선택
-        setSelectedGrade('argen')
+        // 추천 등급 자동 선택
+        setSelectedGrade(recommendedGrade)
 
       } catch (err) {
         console.error('❌ 견적 계산 에러:', err)
@@ -685,15 +860,99 @@ function EstimatePageContent() {
     }
 
     calculate()
-  }, [spaceInfo, selectedSpaces, tierSelections, detailOptions, selectedProcessesBySpace, isHydrated])
+  }, [spaceInfo, selectedSpaces, detailOptions, selectedProcessesBySpace, isHydrated, personalityAnalysis])
 
   // 금액 포맷팅 (만원 단위)
   const formatPrice = (price: number): string => {
     return Math.floor(price / 10000).toLocaleString('ko-KR')
   }
 
-  // 선택된 등급의 견적
-  const currentEstimate = selectedGrade && estimates ? estimates[selectedGrade] : null
+  // 금액 포맷팅 (원 단위)
+  const formatWon = (amount: number): string => {
+    return amount.toLocaleString('ko-KR') + '원'
+  }
+
+  // 선택된 등급의 견적 (V4)
+  // 선택된 등급의 견적이 있으면 사용, 없으면 추천 등급 견적 사용
+  const currentEstimate = selectedGrade && estimatesByGrade[selectedGrade] 
+    ? estimatesByGrade[selectedGrade] 
+    : v4Estimate?.estimate || null
+
+  // 등급 선택 핸들러 (해당 등급으로 재계산)
+  const handleGradeSelect = useCallback(async (grade: GradeKeyV4) => {
+    console.log('🔍 handleGradeSelect 호출:', grade)
+    
+    // 이미 계산된 등급이면 바로 표시
+    if (estimatesByGrade[grade]) {
+      console.log('✅ 이미 계산된 등급, 바로 표시:', grade)
+      setSelectedGrade(grade)
+      return
+    }
+
+    // 계산 중이면 무시
+    if (calculatingGrade) {
+      console.log('⏳ 다른 등급 계산 중, 무시:', calculatingGrade)
+      return
+    }
+
+    // baseInputData가 없으면 초기 계산 대기
+    if (!baseInputData) {
+      console.log('⏳ baseInputData 없음, 등급만 선택:', grade)
+      setSelectedGrade(grade)
+      return
+    }
+
+    try {
+      console.log('🚀 등급 견적 계산 시작:', grade)
+      setCalculatingGrade(grade)
+      setIsCalculating(true)
+
+      // 선택된 등급으로 API 호출
+      const gradeCode: 'ARGEN_E' | 'ARGEN_S' | 'ARGEN_O' = 
+        grade === 'argen_e' ? 'ARGEN_E' :
+        grade === 'argen_s' ? 'ARGEN_S' :
+        'ARGEN_O'
+      
+      const response = await fetch('/api/estimate/v4', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...baseInputData,
+          forceGrade: gradeCode,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'V4 견적 계산 실패')
+      }
+
+      const apiResult = await response.json()
+      
+      if (apiResult.status !== 'SUCCESS') {
+        throw new Error(apiResult.message || 'V4 견적 계산 실패')
+      }
+
+      const v4Result: UIEstimateV4 = apiResult.result
+
+      // 해당 등급의 견적 저장
+      setEstimatesByGrade(prev => ({
+        ...prev,
+        [grade]: v4Result,
+      }))
+
+      // 선택된 등급 업데이트
+      setSelectedGrade(grade)
+
+      console.log(`✅ ${grade} 등급 견적 계산 완료:`, v4Result.total.formatted)
+    } catch (err) {
+      console.error(`❌ ${grade} 등급 견적 계산 에러:`, err)
+      setError(err instanceof Error ? err.message : '견적 계산 중 오류가 발생했습니다.')
+    } finally {
+      setIsCalculating(false)
+      setCalculatingGrade(null)
+    }
+  }, [estimatesByGrade, calculatingGrade, baseInputData])
 
   return (
     <>
@@ -707,7 +966,7 @@ function EstimatePageContent() {
               🏠 최종 견적서
             </h1>
             <p className="text-sm md:text-base text-gray-600 mt-2">
-              2025년 아르젠 표준 단가 기준 | 4등급 체계
+              2025년 아르젠 표준 단가 기준 | V4 엔진
             </p>
           </div>
 
@@ -720,7 +979,7 @@ function EstimatePageContent() {
             </h2>
             
             {/* ⚠️ 데이터 없음 경고 */}
-            {selectedSpaceList.length === 0 && selectedProcessList.length === 0 && enabledProcessList.length === 0 && (
+            {selectedSpaceList.length === 0 && selectedProcessList.length === 0 && (
               <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-xl">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">⚠️</span>
@@ -900,7 +1159,7 @@ function EstimatePageContent() {
               <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                 🔧 선택한 공정 
                 <span className="text-xs font-normal text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
-                  {useSpaceBasedProcesses ? selectedProcessList.length : enabledProcessList.length}개
+                  {selectedProcessList.length}개
                 </span>
               </h3>
               
@@ -945,28 +1204,22 @@ function EstimatePageContent() {
                 </div>
               )}
               
-              {/* A안: 티어 기반 공정 선택 (tierSelections) */}
-              {useTierBasedProcesses && (
+              {/* 공정 선택 목록 (공간 기반만) */}
+              {selectedProcessList.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                  {enabledProcessList.map((process) => (
+                  {selectedProcessList.map((process, idx) => (
                     <div
-                      key={process.id}
+                      key={`${process.spaceId}-${process.category}-${idx}`}
                       className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-3 text-center"
                     >
                       <span className="text-2xl">{process.icon}</span>
-                      <p className="font-bold text-gray-900 text-sm mt-1">{process.name}</p>
-                      <p className="text-xs text-green-600 mt-0.5">{process.tierName}</p>
+                      <p className="font-bold text-gray-900 text-sm mt-1">{process.categoryName}</p>
+                      <p className="text-xs text-green-600 mt-0.5">{process.valueName}</p>
                     </div>
                   ))}
                 </div>
               )}
               
-              {/* 공정 선택 없음 */}
-              {!useSpaceBasedProcesses && !useTierBasedProcesses && (
-                <p className="text-sm text-gray-500 italic bg-gray-50 rounded-lg p-3">
-                  선택된 공정이 없습니다. 선택한 공간을 기준으로 자동 적용됩니다.
-                </p>
-              )}
             </div>
 
             {/* 4. 세부 옵션 (주방/욕실) - ✅ 선택한 공간에 해당하는 옵션만 표시 */}
@@ -1104,57 +1357,112 @@ function EstimatePageContent() {
             </div>
           )}
 
-          {/* 4등급 카드 */}
-          {estimates && !isCalculating && (
+          {/* V4 실패 상태 */}
+          {v4Estimate && !v4Estimate.estimate.isSuccess && !isCalculating && (
+            <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-6 mb-6">
+              <div className="text-center">
+                <p className="text-red-600 font-semibold mb-2">⚠️ 견적 계산 실패</p>
+                <p className="text-sm text-red-700 mb-4">
+                  {v4Estimate.estimate.errorMessage || '알 수 없는 오류가 발생했습니다.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push('/onboarding/scope')}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  공사 범위 다시 선택하기
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* breakdown이 비어있을 때 안내 (성공했지만 공정이 없음) */}
+          {v4Estimate && 
+           v4Estimate.estimate.isSuccess && 
+           v4Estimate.estimate.breakdown.length === 0 && 
+           !isCalculating && (
+            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-6 mb-6">
+              <div className="text-center">
+                <p className="text-yellow-800 font-semibold mb-2">
+                  ⚠️ 견적을 계산할 수 없습니다
+                </p>
+                <p className="text-sm text-yellow-700 mb-4">
+                  선택된 공간이나 공정이 없습니다. 공사 범위를 다시 선택해주세요.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push('/onboarding/scope')}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                >
+                  공사 범위 선택하기
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* V4 3등급 카드 */}
+          {v4Estimate && !isCalculating && currentEstimate && (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-                {(['basic', 'standard', 'argen', 'premium'] as GradeKey[]).map((grade) => {
-                  const estimate = estimates[grade]
-                  const info = gradeInfo[grade]
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6">
+                {(['argen_e', 'argen_s', 'argen_o'] as GradeKeyV4[]).map((grade) => {
+                  const info = V4_GRADE_INFO[grade]
                   const isSelected = selectedGrade === grade
-                  const isRecommended = estimates.recommended === grade
+                  
+                  // 선택된 등급의 견적이 있으면 표시
+                  const gradeEstimate = estimatesByGrade[grade]
+                  const isCalculatingThisGrade = calculatingGrade === grade
+                  const displayAmount = gradeEstimate
+                    ? gradeEstimate.total.formatted
+                    : isCalculatingThisGrade
+                    ? '계산 중...'
+                    : '견적 확인하기'
 
                   return (
                     <button
                       key={grade}
-                      onClick={() => setSelectedGrade(grade)}
-                      className={`relative p-4 md:p-5 rounded-2xl border-2 transition-all duration-200 text-left ${
+                      onClick={() => handleGradeSelect(grade)}
+                      disabled={calculatingGrade === grade}
+                      className={`relative p-5 md:p-6 rounded-2xl border-2 transition-all duration-200 text-left ${
                         isSelected
                           ? 'border-argen-500 bg-argen-50 shadow-lg scale-[1.02]'
                           : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
                       }`}
                     >
-                      {/* 추천 배지 */}
-                      {isRecommended && (
-                        <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-argen-500 text-white text-xs font-bold rounded-full">
-                          추천
-                        </div>
-                      )}
 
                       {/* 등급 아이콘 & 이름 */}
                       <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">{info.icon}</span>
-                        <span className={`font-bold ${isSelected ? 'text-argen-600' : 'text-gray-900'}`}>
-                          {info.title}
-                        </span>
+                        <span className="text-3xl">{info.icon}</span>
+                        <div>
+                          <span className={`font-bold text-lg ${isSelected ? 'text-argen-600' : 'text-gray-900'}`}>
+                            {info.title}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-0.5">{info.description}</p>
+                        </div>
                       </div>
 
                       {/* 금액 */}
                       <div className="mb-2">
-                        <p className={`text-xl md:text-2xl font-bold ${isSelected ? 'text-argen-600' : 'text-gray-900'}`}>
-                          {formatPrice(estimate?.summary?.grandTotal || 0)}
-                          <span className="text-sm font-normal text-gray-500 ml-1">만원</span>
-                        </p>
+                        {gradeEstimate ? (
+                          <p className={`text-2xl md:text-3xl font-bold ${isSelected ? 'text-argen-600' : 'text-gray-900'}`}>
+                            {displayAmount}
+                          </p>
+                        ) : isCalculatingThisGrade ? (
+                          <p className="text-lg text-gray-400">계산 중...</p>
+                        ) : (
+                          <p className="text-lg text-gray-400">견적 확인하기</p>
+                        )}
                       </div>
 
-                      {/* 평당 단가 - ✅ 안전 체크 추가 */}
-                      <p className="text-xs text-gray-500">
-                        평당 약 {formatPrice(estimate?.summary?.pricePerPy || 0)}만원
-                      </p>
+                      {/* 평당 단가 */}
+                      {gradeEstimate && gradeEstimate.total.perPyeong && (
+                        <p className="text-xs text-gray-500">
+                          {gradeEstimate.total.perPyeong}
+                        </p>
+                      )}
 
                       {/* 선택 표시 */}
                       {isSelected && (
-                        <div className="absolute bottom-2 right-2 w-6 h-6 bg-argen-500 rounded-full flex items-center justify-center">
+                        <div className="absolute bottom-3 right-3 w-6 h-6 bg-argen-500 rounded-full flex items-center justify-center">
                           <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
@@ -1165,8 +1473,26 @@ function EstimatePageContent() {
                 })}
               </div>
               
-              {/* 선택된 등급 상세 */}
-              {currentEstimate && selectedGrade && (
+              {/* 성향 분석 반영 여부 표시 (버그 4 개선) */}
+              {currentEstimate.hasPersonalityData && (
+                <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                  <p className="text-sm text-purple-800 font-medium">
+                    ✨ {currentEstimate.personalityBasedMessage}
+                  </p>
+                  {currentEstimate.personalityMatch.highlights.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {currentEstimate.personalityMatch.highlights.map((highlight, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+                          {highlight}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* 선택된 등급 상세 (V4) */}
+              {currentEstimate && selectedGrade && currentEstimate.isSuccess && (
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-6">
                   {/* 탭 헤더 */}
                   <div className="flex border-b border-gray-200">
@@ -1195,210 +1521,124 @@ function EstimatePageContent() {
                   {/* 탭 컨텐츠 */}
                   <div className="p-4 md:p-6">
                     {activeTab === 'summary' ? (
-                      /* 견적 요약 */
+                      /* 견적 요약 (V4) */
                       <div>
                         <div className="flex items-center gap-3 mb-6">
-                          <span className="text-3xl">{gradeInfo[selectedGrade].icon}</span>
+                          <span className="text-3xl">{V4_GRADE_INFO[selectedGrade].icon}</span>
                           <div>
                             <h3 className="text-xl font-bold text-gray-900">
-                              {gradeInfo[selectedGrade].title} 등급
+                              {currentEstimate.gradeName}
                             </h3>
                             <p className="text-sm text-gray-500">
-                              {GRADES[GRADE_MAP[selectedGrade]].description}
+                              {V4_GRADE_INFO[selectedGrade].description}
                             </p>
                           </div>
                         </div>
 
-                        {/* 금액 요약 */}
-                        <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">자재비</span>
-                              <span className="font-medium">{formatWon(currentEstimate?.summary?.materialTotal || 0)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">노무비</span>
-                              <span className="font-medium">{formatWon(currentEstimate?.summary?.laborTotal || 0)}</span>
-                            </div>
-                            <div className="border-t border-gray-300 pt-3 flex justify-between items-center">
-                              <span className="text-gray-600">순공사비</span>
-                              <span className="font-medium">{formatWon(currentEstimate?.summary?.netTotal || 0)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">부가세 (10%)</span>
-                              <span className="font-medium">{formatWon(currentEstimate?.summary?.vat || 0)}</span>
-                            </div>
-                            <div className="border-t-2 border-purple-300 pt-3 flex justify-between items-center">
-                              <span className="text-lg font-bold text-gray-900">총 견적</span>
-                              <span className="text-xl font-bold text-argen-600">
-                                {formatWon(currentEstimate?.summary?.grandTotal || 0)}
+                        {/* 총액 표시 */}
+                        <div className="bg-gradient-to-br from-purple-50 to-argen-50 rounded-xl p-6 mb-6 border-2 border-purple-200">
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600 mb-2">총 견적</p>
+                            <p className="text-4xl font-bold text-argen-600 mb-2">
+                              {currentEstimate.total.formatted}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {currentEstimate.total.perPyeong}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* 경고 메시지 */}
+                        {currentEstimate.warnings.length > 0 && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                            {currentEstimate.warnings.map((warning, idx) => (
+                              <p key={idx} className="text-sm text-yellow-800 mb-1">
+                                ⚠️ {warning}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 성향 매칭 정보 */}
+                        {currentEstimate.personalityMatch.score > 0 && (
+                          <div className="bg-purple-50 rounded-xl p-4 mb-6">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xl">🎯</span>
+                              <span className="font-bold text-gray-900">성향 매칭도</span>
+                              <span className="text-purple-600 font-bold">
+                                {currentEstimate.personalityMatch.score}%
                               </span>
                             </div>
-                          </div>
-                        </div>
-
-                        {/* 공사 기간 */}
-                        <div className="bg-blue-50 rounded-xl p-4 mb-6">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xl">📅</span>
-                            <span className="font-bold text-gray-900">예상 공사 기간</span>
-                          </div>
-                          <p className="text-blue-700 font-medium">{currentEstimate?.duration?.typical || '-'}</p>
-                        </div>
-
-                        {/* 아르젠 특장점 */}
-                        {currentEstimate?.argenFeatures && (
-                          <div className="bg-argen-50 rounded-xl p-4">
-                            <h4 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
-                              <span>🏆</span> 아르젠 등급 특장점
-                            </h4>
-                            
-                            <div className="mb-4">
-                              <p className="text-sm font-medium text-argen-600 mb-2">🔧 아르젠 제작 품목</p>
-                              <ul className="space-y-1">
-                                {currentEstimate.argenFeatures.made.map((item, i) => (
-                                  <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="text-argen-500">•</span>
-                                    {item}
-                                  </li>
+                            {currentEstimate.personalityMatch.highlights.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {currentEstimate.personalityMatch.highlights.map((highlight, idx) => (
+                                  <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+                                    {highlight}
+                                  </span>
                                 ))}
-                              </ul>
-                            </div>
-                            
-                            <div>
-                              <p className="text-sm font-medium text-argen-600 mb-2">⭐ 아르젠 추천 자재</p>
-                              <ul className="space-y-1">
-                                {currentEstimate.argenFeatures.recommended.map((item, i) => (
-                                  <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="text-argen-500">•</span>
-                                    {item}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     ) : (
-                      /* 공정별 상세 - 선택된 공간만 표시 */
+                      /* 공정별 상세 (V4) */
                       <div className="space-y-4">
-                        {/* ✅ 디버깅 정보 (개발 모드) */}
-                        {process.env.NODE_ENV === 'development' && (
-                          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
-                            <p className="font-bold mb-2">🔍 상세견적 디버깅 정보</p>
-                            <div className="space-y-1">
-                              {Object.entries(currentEstimate?.spaces || {}).map(([key, space]) => {
-                                const willDisplay = space && 
-                                                  space.items && 
-                                                  space.items.length > 0 && 
-                                                  (space.subtotal > 0 || key === 'common') &&
-                                                  !space.spaceName?.includes('(미선택)');
-                                return (
-                                  <div key={key} className={`p-2 rounded ${willDisplay ? 'bg-green-50' : 'bg-red-50'}`}>
-                                    <span className="font-medium">{key}:</span>{' '}
-                                    <span>공간명={space?.spaceName || '없음'}, </span>
-                                    <span>항목수={space?.items?.length || 0}, </span>
-                                    <span>소계={formatWon(space?.subtotal || 0)}, </span>
-                                    <span className={willDisplay ? 'text-green-700 font-bold' : 'text-red-700'}>
-                                      {willDisplay ? '✅ 표시됨' : '❌ 제외됨'}
-                                    </span>
+                        {currentEstimate.breakdown.length > 0 ? (
+                          currentEstimate.breakdown.map((block, idx) => (
+                            <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden">
+                              <div className="bg-gray-50 px-4 py-3 flex justify-between items-center border-b border-gray-200">
+                                <span className="font-bold text-gray-900">{block.processName}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-gray-500">{block.percentage}%</span>
+                                  <span className="font-bold text-argen-600 text-lg">{block.amount}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="p-4">
+                                {/* 자재 내역 */}
+                                {block.materials.length > 0 && (
+                                  <div className="mb-4">
+                                    <h4 className="text-sm font-semibold text-gray-700 mb-2">자재</h4>
+                                    <div className="space-y-2">
+                                      {block.materials.map((material, mIdx) => (
+                                        <div key={mIdx} className="flex justify-between items-center text-sm">
+                                          <div className="flex-1">
+                                            <span className="text-gray-900">{material.name}</span>
+                                            <span className="text-gray-500 ml-2">({material.quantity})</span>
+                                          </div>
+                                          <div className="text-right">
+                                            <span className="text-gray-600">{material.unitPrice}</span>
+                                            <span className="text-gray-400 mx-1">×</span>
+                                            <span className="font-medium text-gray-900">{material.totalPrice}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
-                                );
-                              })}
+                                )}
+                                
+                                {/* 노무 내역 */}
+                                {block.labor && (
+                                  <div className="pt-3 border-t border-gray-100">
+                                    <h4 className="text-sm font-semibold text-gray-700 mb-2">노무</h4>
+                                    <div className="flex justify-between items-center text-sm">
+                                      <span className="text-gray-900">{block.labor.type}</span>
+                                      <span className="font-medium text-gray-900">{block.labor.amount}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
+                          ))
+                        ) : (
+                          <div className="p-6 text-center bg-gray-50 rounded-xl border border-gray-200">
+                            <p className="text-gray-600 mb-2">⚠️ 표시할 상세 견적이 없습니다</p>
+                            <p className="text-sm text-gray-500">
+                              선택한 공간과 공정에 대한 견적이 계산되지 않았습니다.
+                            </p>
                           </div>
                         )}
-                        
-                        {/* ✅ 공간 표시 순서 정의 (일관된 순서 보장) */}
-                        {(() => {
-                          return SPACE_DISPLAY_ORDER
-                            .filter(key => {
-                              const space = currentEstimate?.spaces[key as keyof typeof currentEstimate.spaces];
-                              // ✅ 개선된 필터링 로직
-                              if (!space) return false;
-                              if (space.spaceName && space.spaceName.includes('(미선택)')) return false;
-                              if (!space.items || space.items.length === 0) {
-                                // common 공간은 항목이 없어도 표시하지 않음 (철거/보양이 없을 수 있음)
-                                return false;
-                              }
-                              // common은 소계가 0이어도 표시 (항목이 있으면)
-                              if (space.subtotal === 0 && key !== 'common') return false;
-                              return true;
-                            })
-                            .map(key => {
-                              const space = currentEstimate?.spaces[key as keyof typeof currentEstimate.spaces];
-                              if (!space) return null;
-                              
-                              return (
-                                <div key={key} className="border border-gray-200 rounded-xl overflow-hidden">
-                                  <div className="bg-gray-50 px-4 py-3 flex justify-between items-center">
-                                    <span className="font-bold text-gray-900">{space.spaceName}</span>
-                                    <span className="font-bold text-argen-600">{formatWon(space.subtotal)}</span>
-                                  </div>
-                                  <div className="p-4">
-                                    <table className="w-full text-sm">
-                                      <thead>
-                                        <tr className="text-gray-500 text-xs">
-                                          <th className="text-left pb-2">항목</th>
-                                          <th className="text-right pb-2">자재비</th>
-                                          <th className="text-right pb-2">노무비</th>
-                                          <th className="text-right pb-2">합계</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {space.items.map((item, i) => (
-                                          <tr key={i} className="border-t border-gray-100">
-                                            <td className="py-2">
-                                              <div className="font-medium text-gray-900">{item.name}</div>
-                                              {item.quantity && (
-                                                <div className="text-xs text-gray-500">{item.quantity}</div>
-                                              )}
-                                              {item.note && (
-                                                <div className="text-xs text-argen-500">{item.note}</div>
-                                              )}
-                                            </td>
-                                            <td className="py-2 text-right text-gray-600">
-                                              {item.materialCost > 0 ? formatWon(item.materialCost) : '-'}
-                                            </td>
-                                            <td className="py-2 text-right text-gray-600">
-                                              {item.laborCost > 0 ? formatWon(item.laborCost) : '-'}
-                                            </td>
-                                            <td className="py-2 text-right font-medium text-gray-900">
-                                              {formatWon(item.totalCost)}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
-                              );
-                            });
-                        })()}
-                        
-                        {/* ✅ 표시된 공간이 없을 때 안내 */}
-                        {(() => {
-                          const hasAnySpace = (SPACE_DISPLAY_ORDER as readonly string[]).some(key => {
-                            const space = currentEstimate?.spaces[key as keyof typeof currentEstimate.spaces];
-                            return space && 
-                                   space.items && 
-                                   space.items.length > 0 && 
-                                   (space.subtotal > 0 || key === 'common') &&
-                                   !space.spaceName?.includes('(미선택)');
-                          });
-                          
-                          if (!hasAnySpace) {
-                            return (
-                              <div className="p-6 text-center bg-gray-50 rounded-xl border border-gray-200">
-                                <p className="text-gray-600 mb-2">⚠️ 표시할 상세 견적이 없습니다</p>
-                                <p className="text-sm text-gray-500">
-                                  선택한 공간과 공정에 대한 견적이 계산되지 않았습니다.
-                                </p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
                       </div>
                     )}
                   </div>

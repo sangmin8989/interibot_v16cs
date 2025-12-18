@@ -24,3 +24,4 @@ SELECT '✅ labor_costs 테이블 컬럼 추가 완료!' as status;
 
 
 
+

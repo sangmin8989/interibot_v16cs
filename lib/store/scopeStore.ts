@@ -21,10 +21,17 @@ interface ScopeStore {
 // ✅ 초기 공간 목록 생성 (방 개수 + 욕실 개수 기반)
 const createInitialSpaces = (roomCount: number = 3, bathroomCount: number = 2): SelectedSpace[] => {
   const spaces = getAllSpacesWithBathrooms(roomCount, bathroomCount)
+  
+  // 필수 공간 목록 (기본적으로 선택되어야 하는 공간)
+  const essentialSpaces = ['거실', '주방', '침실', '욕실', '현관']
+  
   return spaces.map(space => ({
     id: space.id,
     name: space.name,
-    isSelected: false,
+    // 필수 공간은 자동 선택
+    isSelected: essentialSpaces.some(essential => 
+      space.name.includes(essential)
+    ),
   }))
 }
 
