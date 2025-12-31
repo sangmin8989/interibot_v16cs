@@ -24,6 +24,15 @@ export default function EstimateOptionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [options, setOptions] = useState<ThreeOptionsData | null>(null);
+  // 마지막 입력값(평수, 연식 등) 저장 → /estimate-result 전달용
+  const [lastInput, setLastInput] = useState<{
+    pyeong: number;
+    buildingAge: number;
+    familyType: string;
+    currentPrice?: number;
+    intevityType?: string;
+    intevityTraits?: string[];
+  } | null>(null);
 
   // URL에서 파라미터 가져오기
   useEffect(() => {
@@ -38,6 +47,16 @@ export default function EstimateOptionsPage() {
     const intevityType = params.get('intevityType') || undefined;
     const intevityTraitsParam = params.get('intevityTraits');
     const intevityTraits = intevityTraitsParam ? intevityTraitsParam.split(',') : undefined;
+
+    // 저장해두었다가 옵션 선택 시 함께 전달
+    setLastInput({
+      pyeong,
+      buildingAge,
+      familyType,
+      currentPrice,
+      intevityType,
+      intevityTraits,
+    });
 
     // 옵션 3안 자동 생성 API 호출
     generateOptions({ pyeong, buildingAge, familyType, currentPrice, intevityType, intevityTraits });
@@ -95,6 +114,29 @@ export default function EstimateOptionsPage() {
   };
 
   const handleSelectOption = (optionName: string, cost: number) => {
+    if (!options) return;
+
+    // 선택된 옵션 데이터 추출
+    const selectedOption =
+      options.optionA.name === optionName
+        ? options.optionA
+        : options.optionB.name === optionName
+        ? options.optionB
+        : options.optionC;
+
+    // 전체 AI 결과를 저장 (최종 견적 페이지에서 그대로 사용)
+    localStorage.setItem(
+      'selectedAIOption',
+      JSON.stringify({
+        selectedOptionName: optionName,
+        option: selectedOption,
+        aiReasoning: options.aiReasoning,
+        intevityType: options.intevityType,
+        input: lastInput,
+        timestamp: Date.now(),
+      })
+    );
+
     // 선택한 옵션 정보를 저장하고 상세 페이지로 이동
     localStorage.setItem(
       'selectedOption',
@@ -105,10 +147,10 @@ export default function EstimateOptionsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#F7F3ED] to-[#FFF9F3] flex items-center justify-center">
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#4A3D33] mx-auto mb-4" />
-          <p className="text-[#4A3D33] font-bold">맞춤 옵션 생성 중...</p>
+          <p className="text-[#4A3D33] font-bold text-lg">맞춤 옵션 생성 중...</p>
           <p className="text-[#9B8C7A] text-sm mt-2">생활 만족도와 집값 상승을 계산하고 있습니다</p>
         </div>
       </div>
@@ -117,13 +159,13 @@ export default function EstimateOptionsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#F7F3ED] to-[#FFF9F3] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl p-8 shadow-lg max-w-md">
           <h2 className="text-2xl font-bold text-red-600 mb-4">오류 발생</h2>
           <p className="text-[#6B6B6B] mb-6">{error}</p>
           <button
             onClick={() => router.back()}
-            className="w-full py-3 bg-[#4A3D33] text-white rounded-xl font-bold hover:bg-[#3A2D23]"
+            className="w-full py-3 bg-[#4A3D33] text-white rounded-xl font-bold hover:bg-[#3A2D23] transition-all"
           >
             돌아가기
           </button>
@@ -137,27 +179,28 @@ export default function EstimateOptionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F7F3ED] to-[#FFF9F3] py-12 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-[#FDFBF7] py-12 px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto space-y-10">
         {/* 헤더 */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          transition={{ duration: 0.5 }}
+          className="text-center space-y-4"
         >
           {/* 인테비티 성향 표시 */}
           {options.intevityType && (
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-200 mb-4">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-[#E8E0D5] shadow-sm mb-2">
               <span className="text-lg">✨</span>
-              <span className="text-sm font-semibold text-purple-700">
-                나의 인테비티: {options.intevityType}
+              <span className="text-xs font-semibold text-[#7A6A59]">
+                {options.intevityType}
               </span>
             </div>
           )}
-          <h1 className="text-4xl font-bold text-[#1F1F1F] mb-4">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#1F1F1F] tracking-tight">
             {options.intevityType ? 'AI 맞춤 견적 옵션 3안' : '맞춤 견적 옵션 3안'}
           </h1>
-          <p className="text-lg text-[#6B6B6B] mb-2">
+          <p className="text-base text-[#6B6B6B] max-w-2xl mx-auto leading-relaxed">
             {options.aiReasoning || 'AI가 분석한 생활 만족도와 집값 상승을 비교하세요'}
           </p>
           <p className="text-sm text-[#9B8C7A]">
@@ -169,22 +212,22 @@ export default function EstimateOptionsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="hidden lg:block mb-12"
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="hidden lg:block"
         >
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-[#E8E0D5]">
             <table className="w-full">
               <thead className="bg-[#4A3D33] text-white">
                 <tr>
-                  <th className="py-4 px-6 text-left">비교 항목</th>
-                  <th className="py-4 px-6 text-center">A안 (안전형)</th>
-                  <th className="py-4 px-6 text-center bg-[#3A2D23]">B안 (균형형) ⭐</th>
-                  <th className="py-4 px-6 text-center">C안 (프리미엄)</th>
+                  <th className="py-4 px-6 text-left font-semibold">비교 항목</th>
+                  <th className="py-4 px-6 text-center font-semibold">A안 (가성비형)</th>
+                  <th className="py-4 px-6 text-center bg-[#3A2D23] font-semibold">B안 (균형형) ⭐</th>
+                  <th className="py-4 px-6 text-center font-semibold">C안 (프리미엄형)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E0D5]">
                 <tr>
-                  <td className="py-3 px-6 font-bold text-[#4A3D33]">공사비</td>
+                  <td className="py-3 px-6 font-semibold text-[#4A3D33]">공사비</td>
                   <td className="py-3 px-6 text-center">{options.optionA.cost.toLocaleString()}만원</td>
                   <td className="py-3 px-6 text-center bg-[#F7F3ED] font-bold">
                     {options.optionB.cost.toLocaleString()}만원
@@ -192,7 +235,7 @@ export default function EstimateOptionsPage() {
                   <td className="py-3 px-6 text-center">{options.optionC.cost.toLocaleString()}만원</td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-6 font-bold text-[#4A3D33]">생활 만족도</td>
+                  <td className="py-3 px-6 font-semibold text-[#4A3D33]">생활 만족도</td>
                   <td className="py-3 px-6 text-center">
                     {options.optionA.analysis.satisfaction.finalScore}점
                   </td>
@@ -204,7 +247,7 @@ export default function EstimateOptionsPage() {
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-6 font-bold text-[#4A3D33]">집값 상승</td>
+                  <td className="py-3 px-6 font-semibold text-[#4A3D33]">집값 상승</td>
                   <td className="py-3 px-6 text-center">
                     +{options.optionA.analysis.priceIncrease.expectedIncrease.toLocaleString()}만원
                   </td>
@@ -216,7 +259,7 @@ export default function EstimateOptionsPage() {
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-6 font-bold text-[#4A3D33]">ROI</td>
+                  <td className="py-3 px-6 font-semibold text-[#4A3D33]">ROI</td>
                   <td className="py-3 px-6 text-center">
                     {options.optionA.analysis.priceIncrease.roi}%
                   </td>
@@ -228,19 +271,19 @@ export default function EstimateOptionsPage() {
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-6 font-bold text-[#4A3D33]">종합 등급</td>
+                  <td className="py-3 px-6 font-semibold text-[#4A3D33]">종합 등급</td>
                   <td className="py-3 px-6 text-center">
-                    <span className="px-3 py-1 rounded-full bg-[#E8E0D5] text-[#4A3D33] font-bold">
+                    <span className="px-3 py-1 rounded-full bg-[#E8E0D5] text-[#4A3D33] font-bold text-sm">
                       {options.optionA.analysis.overall.grade}
                     </span>
                   </td>
                   <td className="py-3 px-6 text-center bg-[#F7F3ED]">
-                    <span className="px-3 py-1 rounded-full bg-[#4A3D33] text-white font-bold">
+                    <span className="px-3 py-1 rounded-full bg-[#4A3D33] text-white font-bold text-sm">
                       {options.optionB.analysis.overall.grade}
                     </span>
                   </td>
                   <td className="py-3 px-6 text-center">
-                    <span className="px-3 py-1 rounded-full bg-[#E8E0D5] text-[#4A3D33] font-bold">
+                    <span className="px-3 py-1 rounded-full bg-[#E8E0D5] text-[#4A3D33] font-bold text-sm">
                       {options.optionC.analysis.overall.grade}
                     </span>
                   </td>
@@ -250,7 +293,7 @@ export default function EstimateOptionsPage() {
                   options.optionB.analysis.priceIncrease.utilitySavings ||
                   options.optionC.analysis.priceIncrease.utilitySavings) && (
                   <tr className="bg-green-50">
-                    <td className="py-3 px-6 font-bold text-green-700">💰 관리비 절감</td>
+                    <td className="py-3 px-6 font-semibold text-green-700">💰 관리비 절감</td>
                     <td className="py-3 px-6 text-center text-sm">
                       {options.optionA.analysis.priceIncrease.utilitySavings 
                         ? `월 ${Math.round(options.optionA.analysis.priceIncrease.utilitySavings.monthlySavings / 10000)}만원`
@@ -285,7 +328,12 @@ export default function EstimateOptionsPage() {
         </motion.div>
 
         {/* 옵션 카드 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        >
           {/* A안 */}
           <OptionCard
             optionName={options.optionA.name}
@@ -316,21 +364,21 @@ export default function EstimateOptionsPage() {
             analysis={options.optionC.analysis}
             onSelect={() => handleSelectOption(options.optionC.name, options.optionC.cost)}
           />
-        </div>
+        </motion.div>
 
         {/* 하단 안내 */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-12 text-center"
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="text-center space-y-4"
         >
-          <p className="text-sm text-[#9B8C7A] mb-4">
-            ※ 위 금액은 예상 견적이며, 실제 공사비는 현장 상황에 따라 달라질 수 있습니다.
+          <p className="text-sm text-[#9B8C7A] px-4">
+            ※ 위 금액은 예상 견적이며, 실제 공사비는 현장 상황에 따라 달라질 수 있습니다
           </p>
           <button
             onClick={() => router.back()}
-            className="px-8 py-3 bg-white text-[#4A3D33] border-2 border-[#4A3D33] rounded-xl font-bold hover:bg-[#F7F3ED] transition-all"
+            className="w-full sm:w-auto px-8 py-3 bg-white text-[#4A3D33] border-2 border-[#E8E0D5] rounded-xl font-semibold hover:bg-[#F7F3ED] transition-all"
           >
             ← 뒤로 가기
           </button>

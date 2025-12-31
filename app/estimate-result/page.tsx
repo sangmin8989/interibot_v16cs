@@ -19,6 +19,7 @@ import {
   GRADE_INFO,
   type ArgenGrade,
 } from '@/lib/data/gradeSpecs';
+import OptionCard from '@/components/v5-ultimate/OptionCard';
 
 // 등급별 배율 (견적 대비)
 const GRADE_MULTIPLIERS: Record<ArgenGrade, number> = {
@@ -40,6 +41,7 @@ export default function EstimateResultPage() {
   const { selectedSpaces, additionalOptions, estimateTotal } = useSpaceSelectStore();
 
   const [mounted, setMounted] = useState(false);
+  const [aiOption, setAiOption] = useState<any | null>(null); // AI 옵션 플로우용
   const [selectedGrade, setSelectedGrade] = useState<ArgenGrade>('STANDARD');
   const [showDetails, setShowDetails] = useState(false);
   const [aiExplanation, setAiExplanation] = useState<string>('');
@@ -50,6 +52,20 @@ export default function EstimateResultPage() {
   // 마운트 확인 및 데이터 검증
   useEffect(() => {
     setMounted(true);
+
+    // AI 플로우 결과(localStorage)에 있으면 우선 사용
+    const savedAIOption = typeof window !== 'undefined' ? localStorage.getItem('selectedAIOption') : null;
+    if (savedAIOption) {
+      try {
+        const parsed = JSON.parse(savedAIOption);
+        setAiOption(parsed);
+        return;
+      } catch (e) {
+        console.error('AI 옵션 파싱 실패:', e);
+      }
+    }
+
+    // 기존 온보딩 플로우 검증
     if (!spaceInfo || selectedSpaces.length === 0) {
       router.push('/onboarding');
     }
@@ -184,6 +200,80 @@ export default function EstimateResultPage() {
     });
   };
 
+  // 🚀 AI 플로우 결과가 있으면 전용 화면 렌더링
+  if (mounted && aiOption) {
+    const { option, aiReasoning, intevityType, input } = aiOption;
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] pb-24">
+        <div className="bg-gradient-to-b from-[#F7F3ED] to-[#FDFBF7] pt-12 pb-8 px-4 sm:px-6">
+          <div className="max-w-4xl mx-auto text-center space-y-4">
+            <button
+              onClick={() => router.push('/v5/ai-quick-input')}
+              className="mb-4 text-sm text-[#7A6A59] hover:text-[#4A3D33] flex items-center gap-2 mx-auto transition-all"
+            >
+              ← 다시 선택하기
+            </button>
+            {intevityType && (
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-[#E8E0D5] shadow-sm">
+                <span className="text-lg">✨</span>
+                <span className="text-xs font-semibold text-[#7A6A59]">{intevityType}</span>
+              </div>
+            )}
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#1F1F1F] tracking-tight">
+              AI 맞춤 견적서
+            </h1>
+            <p className="text-base text-[#6B6B6B] max-w-2xl mx-auto leading-relaxed">
+              {aiReasoning || 'AI 분석 기반 추천 옵션을 확인하세요'}
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 text-xs mt-4">
+              {input?.pyeong && (
+                <span className="px-3 py-1.5 bg-white text-[#4A3D33] rounded-full border border-[#E8E0D5] shadow-sm font-medium">
+                  🏠 {input.pyeong}평
+                </span>
+              )}
+              {input?.buildingAge !== undefined && (
+                <span className="px-3 py-1.5 bg-white text-[#4A3D33] rounded-full border border-[#E8E0D5] shadow-sm font-medium">
+                  🏗️ 연식 {input.buildingAge}년
+                </span>
+              )}
+              {input?.familyType && (
+                <span className="px-3 py-1.5 bg-white text-[#4A3D33] rounded-full border border-[#E8E0D5] shadow-sm font-medium">
+                  👨‍👩‍👧‍👦 {input.familyType}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+          {/* 선택한 옵션 카드 */}
+          <OptionCard
+            optionName={option.name}
+            description={option.description}
+            processes={option.processes}
+            cost={option.cost}
+            analysis={option.analysis}
+            recommended
+          />
+
+          {/* 출처·면책 */}
+          {option.analysis?.priceIncrease?.disclaimer && (
+            <div className="bg-[#F7F3ED] px-6 py-5 text-xs text-[#6B6B6B] space-y-2 border border-[#E8E0D5] rounded-2xl">
+              <p>
+                <strong className="text-[#4A3D33]">📚 출처:</strong>{' '}
+                {option.analysis.priceIncrease.disclaimer.sources}
+              </p>
+              <p>
+                <strong className="text-[#4A3D33]">⚠️ 주의:</strong>{' '}
+                {option.analysis.priceIncrease.disclaimer.warning}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!mounted || !spaceInfo || selectedSpaces.length === 0) {
     return (
       <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
@@ -198,20 +288,24 @@ export default function EstimateResultPage() {
   return (
     <div className="min-h-screen bg-[#FDFBF7] pb-32">
       {/* 헤더 */}
-      <div className="bg-gradient-to-b from-[#F7F3ED] to-[#FDFBF7] pt-12 pb-8 px-6">
+      <div className="bg-gradient-to-b from-[#F7F3ED] to-[#FDFBF7] pt-12 pb-8 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto">
           <button
             onClick={() => router.push('/onboarding')}
-            className="mb-6 text-sm text-[#7A6A59] hover:text-[#4A3D33] flex items-center gap-2"
+            className="mb-6 text-sm text-[#7A6A59] hover:text-[#4A3D33] flex items-center gap-2 transition-all"
           >
             ← 다시 선택하기
           </button>
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
+            transition={{ duration: 0.5 }}
+            className="text-center space-y-4"
           >
-            <h1 className="text-3xl md:text-4xl font-bold text-[#1F1F1F] mb-3">
+            <div className="inline-block px-4 py-1.5 rounded-full bg-white border border-[#E8E0D5] shadow-sm mb-2">
+              <span className="text-xs font-semibold text-[#7A6A59]">최종 견적</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#1F1F1F] tracking-tight">
               맞춤 견적서
             </h1>
             <div className="flex flex-wrap justify-center gap-2">

@@ -262,26 +262,32 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-[#FDFBF7] pb-32">
       {/* 헤더 */}
-      <div className="bg-gradient-to-b from-[#F7F3ED] to-[#FDFBF7] pt-12 pb-8 px-6">
+      <div className="bg-gradient-to-b from-[#F7F3ED] to-[#FDFBF7] pt-12 pb-8 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="space-y-4"
           >
             {/* Intevity 결과가 있으면 표시 */}
             {intevityResult && (
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-200 mb-4">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-[#E8E0D5] shadow-sm mb-2">
                 <span className="text-lg">✨</span>
-                <span className="text-sm font-semibold text-purple-700">
-                  나의 인테비티: {intevityResult.profile.type}
+                <span className="text-xs font-semibold text-[#7A6A59]">
+                  {intevityResult.profile.type}
                 </span>
               </div>
             )}
             
-            <h1 className="text-3xl md:text-4xl font-bold text-[#1F1F1F] mb-3">
+            <div className="inline-block px-4 py-1.5 rounded-full bg-white border border-[#E8E0D5] shadow-sm mb-2">
+              <span className="text-xs font-semibold text-[#7A6A59]">STEP 3</span>
+            </div>
+            
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#1F1F1F] tracking-tight">
               맞춤 견적 받기
             </h1>
-            <p className="text-[#6B6B6B]">
+            <p className="text-base text-[#6B6B6B] max-w-xl mx-auto leading-relaxed">
               {intevityResult 
                 ? `${intevityResult.profile.type} 성향에 맞는 맞춤 견적을 받아보세요`
                 : '기본 정보와 원하는 공간을 선택하면 즉시 견적을 확인할 수 있어요'
@@ -294,7 +300,7 @@ export default function OnboardingPage() {
                 {intevityResult.profile.traits.slice(0, 4).map((trait, idx) => (
                   <span 
                     key={idx}
-                    className="px-3 py-1 rounded-full bg-white border border-[#E8E0D5] text-xs text-[#6B6B6B]"
+                    className="px-3 py-1.5 rounded-full bg-white text-[#4A3D33] text-xs font-medium border border-[#E8E0D5] shadow-sm"
                   >
                     {trait}
                   </span>
@@ -305,31 +311,31 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 space-y-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-8">
         {/* 섹션 1: 기본 정보 */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-[#E8E0D5]"
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-[#E8E0D5]"
         >
-          <h2 className="text-lg font-bold text-[#1F1F1F] mb-6 flex items-center gap-2">
-            <span className="w-8 h-8 bg-[#4A3D33] text-white rounded-full flex items-center justify-center text-sm">1</span>
+          <h2 className="text-xl font-bold text-[#1F1F1F] mb-6 flex items-center gap-3">
+            <span className="w-8 h-8 bg-[#4A3D33] text-white rounded-full flex items-center justify-center text-sm font-semibold">1</span>
             기본 정보
           </h2>
 
           <div className="space-y-6">
             {/* 주거형태 */}
             <div>
-              <label className="block text-sm font-medium text-[#4A3D33] mb-3">주거형태</label>
+              <label className="block text-sm font-semibold text-[#4A3D33] mb-3">주거형태</label>
               <div className="flex flex-wrap gap-2">
                 {HOUSING_TYPES.map((type) => (
                   <button
                     key={type}
                     onClick={() => setHousingType(type)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all
+                    className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all
                       ${housingType === type
-                        ? 'bg-[#4A3D33] text-white'
+                        ? 'bg-[#4A3D33] text-white shadow-md'
                         : 'bg-[#F7F3ED] text-[#6B6B6B] hover:bg-[#E8E0D5]'
                       }`}
                   >
@@ -341,15 +347,15 @@ export default function OnboardingPage() {
 
             {/* 평수 */}
             <div>
-              <label className="block text-sm font-medium text-[#4A3D33] mb-3">평수</label>
-              <div className="flex flex-wrap gap-2 mb-3">
+              <label className="block text-sm font-semibold text-[#4A3D33] mb-3">평수</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                 {PYEONG_PRESETS.map((preset) => (
                   <button
                     key={preset.label}
                     onClick={() => setPyeong(preset.value)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all
+                    className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all
                       ${pyeong === preset.value
-                        ? 'bg-[#4A3D33] text-white'
+                        ? 'bg-[#4A3D33] text-white shadow-md'
                         : 'bg-[#F7F3ED] text-[#6B6B6B] hover:bg-[#E8E0D5]'
                       }`}
                   >
@@ -362,45 +368,45 @@ export default function OnboardingPage() {
                   type="number"
                   value={pyeong}
                   onChange={(e) => setPyeong(Math.max(10, Math.min(100, parseInt(e.target.value) || 32)))}
-                  className="w-24 px-4 py-2 border-2 border-[#E8E0D5] rounded-lg text-center focus:border-[#4A3D33] focus:outline-none"
+                  className="flex-1 sm:flex-none sm:w-28 px-4 py-2.5 border-2 border-[#E8E0D5] rounded-xl text-center focus:border-[#4A3D33] focus:outline-none font-semibold"
                 />
-                <span className="text-[#6B6B6B]">평</span>
+                <span className="text-sm text-[#6B6B6B]">평 (직접 입력)</span>
               </div>
             </div>
 
             {/* 방/욕실 개수 */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6">
               <div>
-                <label className="block text-sm font-medium text-[#4A3D33] mb-3">방 개수</label>
-                <div className="flex items-center gap-3">
+                <label className="block text-sm font-semibold text-[#4A3D33] mb-3">방 개수</label>
+                <div className="flex items-center justify-between sm:justify-start sm:gap-3">
                   <button
                     onClick={() => setRooms(Math.max(1, rooms - 1))}
-                    className="w-10 h-10 rounded-full bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center text-xl"
+                    className="w-10 h-10 rounded-xl bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center font-bold text-xl"
                   >
                     −
                   </button>
-                  <span className="w-12 text-center text-lg font-bold text-[#1F1F1F]">{rooms}</span>
+                  <span className="flex-1 sm:w-12 text-center text-lg font-bold text-[#1F1F1F]">{rooms}개</span>
                   <button
                     onClick={() => setRooms(Math.min(6, rooms + 1))}
-                    className="w-10 h-10 rounded-full bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center text-xl"
+                    className="w-10 h-10 rounded-xl bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center font-bold text-xl"
                   >
                     +
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#4A3D33] mb-3">욕실 개수</label>
-                <div className="flex items-center gap-3">
+                <label className="block text-sm font-semibold text-[#4A3D33] mb-3">욕실 개수</label>
+                <div className="flex items-center justify-between sm:justify-start sm:gap-3">
                   <button
                     onClick={() => setBathrooms(Math.max(1, bathrooms - 1))}
-                    className="w-10 h-10 rounded-full bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center text-xl"
+                    className="w-10 h-10 rounded-xl bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center font-bold text-xl"
                   >
                     −
                   </button>
-                  <span className="w-12 text-center text-lg font-bold text-[#1F1F1F]">{bathrooms}</span>
+                  <span className="flex-1 sm:w-12 text-center text-lg font-bold text-[#1F1F1F]">{bathrooms}개</span>
                   <button
                     onClick={() => setBathrooms(Math.min(4, bathrooms + 1))}
-                    className="w-10 h-10 rounded-full bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center text-xl"
+                    className="w-10 h-10 rounded-xl bg-[#F7F3ED] text-[#4A3D33] hover:bg-[#E8E0D5] transition-all flex items-center justify-center font-bold text-xl"
                   >
                     +
                   </button>
@@ -600,33 +606,33 @@ export default function OnboardingPage() {
         animate={{ y: 0 }}
         className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-[#E8E0D5] shadow-2xl z-50"
       >
-        <div className="max-w-3xl mx-auto px-6 py-4">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           {/* 견적 정보 */}
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm text-[#9B8C7A]">예상 견적</p>
+              <p className="text-xs sm:text-sm text-[#9B8C7A]">예상 견적</p>
               {estimateTotal.min > 0 ? (
-                <p className="text-xl font-bold text-[#4A3D33]">
+                <p className="text-lg sm:text-xl font-bold text-[#4A3D33]">
                   {estimateTotal.min.toLocaleString()}~{estimateTotal.max.toLocaleString()}
-                  <span className="text-sm font-normal ml-1">만원</span>
+                  <span className="text-xs sm:text-sm font-normal ml-1">만원</span>
                 </p>
               ) : (
-                <p className="text-sm text-[#9B8C7A]">기본 정보만 입력해도 AI 추천 가능!</p>
+                <p className="text-xs sm:text-sm text-[#9B8C7A]">기본 정보만 입력해도 AI 추천 가능!</p>
               )}
             </div>
             <div className="text-right text-xs text-[#9B8C7A]">
-              <p>{pyeong}평 · {BUILDING_AGE_OPTIONS.find(o => o.value === buildingAge)?.label}</p>
-              <p>{FAMILY_TYPE_OPTIONS.find(o => o.value === familyType)?.label}</p>
+              <p>{pyeong}평 · {BUILDING_AGE_OPTIONS.find(o => o.value === buildingAge)?.label?.replace(/\s*\(.*?\)/, '')}</p>
+              <p className="hidden sm:block">{FAMILY_TYPE_OPTIONS.find(o => o.value === familyType)?.label}</p>
             </div>
           </div>
 
           {/* 버튼 영역 */}
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             {/* 견적 확인 버튼 */}
             {selectedSpaces.length > 0 && (
               <button
                 onClick={handleNext}
-                className="w-full px-6 py-3 rounded-xl font-bold text-base transition-all shadow-lg bg-[#4A3D33] text-white hover:bg-[#3A2D23] hover:shadow-xl"
+                className="w-full px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base transition-all shadow-lg bg-[#4A3D33] text-white hover:bg-[#3A2D23] active:scale-95"
               >
                 견적 확인하기 →
               </button>
