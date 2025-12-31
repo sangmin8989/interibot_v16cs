@@ -12,7 +12,8 @@ export default function Hero() {
   }
 
   const handleStartClick = () => {
-    router.push('/v5')
+    // Intevity 성향 분석 페이지로 이동
+    router.push('/intevity')
   }
 
   return (

@@ -7,9 +7,10 @@ import type { ReportResult } from '@/lib/analysis/report';
 interface SixIndexDashboardProps {
   report: ReportResult;
   onNext: () => void;
+  showCTA?: boolean; // CTA 버튼 표시 여부 (기본값: true)
 }
 
-export default function SixIndexDashboard({ report, onNext }: SixIndexDashboardProps) {
+export default function SixIndexDashboard({ report, onNext, showCTA = true }: SixIndexDashboardProps) {
   const indices = [
     {
       id: 'homeValue',
@@ -143,20 +144,22 @@ export default function SixIndexDashboard({ report, onNext }: SixIndexDashboardP
         </motion.div>
       )}
 
-      {/* CTA 버튼 */}
-      <motion.button
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.2 }}
-        onClick={onNext}
-        className="w-full py-5 bg-[#1F1F1F] text-white font-bold text-xl 
-                   rounded-2xl hover:bg-[#333] transition-all
-                   flex items-center justify-center gap-3
-                   shadow-xl"
-      >
-        공정 선택하기
-        <ArrowRight className="w-6 h-6" />
-      </motion.button>
+      {/* CTA 버튼 (선택적) */}
+      {showCTA && (
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2 }}
+          onClick={onNext}
+          className="w-full py-5 bg-[#1F1F1F] text-white font-bold text-xl 
+                     rounded-2xl hover:bg-[#333] transition-all
+                     flex items-center justify-center gap-3
+                     shadow-xl"
+        >
+          공정 선택하기
+          <ArrowRight className="w-6 h-6" />
+        </motion.button>
+      )}
     </div>
   );
 }

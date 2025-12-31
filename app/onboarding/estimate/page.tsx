@@ -10,6 +10,9 @@ import { useScopeStore } from '@/lib/store/scopeStore'
 import { applyTagsToEstimate } from '@/lib/analysis/v5/tag-estimate-connector'
 import { PROCESS_DEFINITIONS } from '@/constants/process-definitions'
 import { SPACE_NAMES } from '@/constants/spaces'
+import SixIndexDashboard from '@/components/v5-ultimate/SixIndexDashboard'
+import type { FusionAnalysisResult } from '@/lib/analysis/v5-ultimate/types'
+import type { ReportResult } from '@/lib/analysis/report'
 
 // 공정별 Before/After 이미지 생성 타입
 type ProcessImageType = '철거' | '주방' | '욕실' | '타일' | '목공' | '전기' | '도배' | '필름'
@@ -194,6 +197,9 @@ function EstimatePageContent() {
   // Phase 1: Decision Trace 설명 (고객용)
   const [decisionExplanation, setDecisionExplanation] = useState<string[]>([])
   
+  // ✅ 6대 지수 리포트 (V5 분석 결과에서 가져오기)
+  const [sixIndexReport, setSixIndexReport] = useState<ReportResult | null>(null)
+  
   // ✅ 계산된 고객 정보 상태 (UI에서 사용)
   const [calculatedPy, setCalculatedPy] = useState<number>(34)
   const [calculatedRoomCount, setCalculatedRoomCount] = useState<number>(3)
@@ -319,6 +325,24 @@ function EstimatePageContent() {
       if (saved) {
         setDetailOptions(JSON.parse(saved))
         console.log('📦 세부옵션 로드:', JSON.parse(saved))
+      }
+    }
+  }, [])
+
+  // ✅ 6대 지수 리포트 로드 (V5 분석 결과에서)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('v5DnaResult1')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed?.data?.fullReport) {
+            setSixIndexReport(parsed.data.fullReport)
+            console.log('📊 6대 지수 리포트 로드 완료')
+          }
+        }
+      } catch (error) {
+        console.warn('6대 지수 리포트 로드 실패:', error)
       }
     }
   }, [])
@@ -1585,6 +1609,26 @@ function EstimatePageContent() {
                             </p>
                           </div>
                         </div>
+
+                        {/* 6대 지수 분석 리포트 (V5 분석 결과) */}
+                        {sixIndexReport && (
+                          <div className="mb-6 bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                            <SixIndexDashboard 
+                              report={sixIndexReport} 
+                              onNext={() => {
+                                // 리포트에서 공정 선택 버튼 클릭 시 상세 탭으로 이동
+                                setActiveTab('detail');
+                                setTimeout(() => {
+                                  const detailSection = document.querySelector('[data-tab-section="detail"]');
+                                  if (detailSection) {
+                                    detailSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                  }
+                                }, 100);
+                              }}
+                              showCTA={false} // 견적 페이지에서는 CTA 버튼 숨김
+                            />
+                          </div>
+                        )}
 
                         {/* 경고 메시지 */}
                         {currentEstimate.warnings.length > 0 && (

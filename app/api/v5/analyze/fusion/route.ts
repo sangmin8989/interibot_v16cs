@@ -132,13 +132,25 @@ function convertToChatAnalysis(styleResult: any, chatData: any): ChatAnalysisRes
   const tags: AllTags[] = [];
   const hiddenNeeds: string[] = [];
 
-  // styleResult에서 스타일 태그 추출
+  // styleResult에서 스타일 태그 추출 (3초 진단 결과 포함)
   if (styleResult?.styleTag) {
     const styleTagMap: Record<string, AllTags> = {
+      // 기존 매핑
       '모던 내추럴': 'NATURAL_LOVER',
       '모던 미니멀': 'MINIMAL_LOVER',
       '북유럽 내추럴': 'SCANDINAVIAN_LOVER',
       '모던 클래식': 'CLASSIC_LOVER',
+      // 3초 진단 매핑
+      '미니멀 모던': 'MINIMAL_LOVER',
+      '내추럴 모던': 'NATURAL_LOVER',
+      '코지 내추럴': 'NATURAL_LOVER',
+      '모던 심플': 'MINIMAL_LOVER',
+      '럭셔리 클래식': 'CLASSIC_LOVER',
+      '스칸디 내추럴': 'SCANDINAVIAN_LOVER',
+      '빈티지 모던': 'VINTAGE_LOVER',
+      '클래식': 'CLASSIC_LOVER',
+      '미니멀': 'MINIMAL_LOVER',
+      '패밀리 코지': 'NATURAL_LOVER',
     };
     const tag = styleTagMap[styleResult.styleTag];
     if (tag) tags.push(tag);
@@ -266,6 +278,7 @@ function convertToChatAnalysis(styleResult: any, chatData: any): ChatAnalysisRes
 
 export async function POST(request: NextRequest): Promise<NextResponse<FusionAnalyzeResponse>> {
   try {
+    const body = await request.json();
     const { photoAnalysis, chatAnalysis, styleResult, chatData, spaceInfo }: { 
       photoAnalysis: PhotoAnalysisResult | null; 
       chatAnalysis: ChatAnalysisResult | null;
@@ -276,7 +289,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<FusionAna
         pyeong?: number;
         selectedGrade?: string;
       };
-    } = await request.json();
+    } = body;
+
+    console.log('[Fusion API] 요청 받음:', {
+      hasStyleResult: !!styleResult,
+      styleTag: styleResult?.styleTag,
+      hasSpaceInfo: !!spaceInfo,
+      pyeong: spaceInfo?.pyeong,
+      hasPhotoAnalysis: !!photoAnalysis,
+      hasChatAnalysis: !!chatAnalysis,
+    });
 
     // 쇼츠 버전: styleResult와 chatData가 있으면 ChatAnalysisResult 생성
     let finalChatAnalysis = chatAnalysis;
@@ -298,26 +320,70 @@ export async function POST(request: NextRequest): Promise<NextResponse<FusionAna
       });
     }
 
-    // styleResult에서 추가 태그 추출
+    console.log('[Fusion API] 태그 수집 (styleResult 전):', allTags);
+
+    // styleResult에서 추가 태그 추출 (3초 진단 결과 포함)
     if (styleResult?.styleTag) {
       const styleTagMap: Record<string, AllTags> = {
+        // 기존 매핑
         '모던 내추럴': 'NATURAL_LOVER',
         '모던 미니멀': 'MINIMAL_LOVER',
         '북유럽 내추럴': 'SCANDINAVIAN_LOVER',
         '모던 클래식': 'CLASSIC_LOVER',
+        // 3초 진단 매핑
+        '미니멀 모던': 'MINIMAL_LOVER',
+        '내추럴 모던': 'NATURAL_LOVER',
+        '코지 내추럴': 'NATURAL_LOVER',
+        '모던 심플': 'MINIMAL_LOVER',
+        '럭셔리 클래식': 'CLASSIC_LOVER',
+        '스칸디 내추럴': 'SCANDINAVIAN_LOVER',
+        '빈티지 모던': 'VINTAGE_LOVER',
+        '클래식': 'CLASSIC_LOVER',
+        '미니멀': 'MINIMAL_LOVER',
+        '패밀리 코지': 'NATURAL_LOVER',
       };
       const tag = styleTagMap[styleResult.styleTag];
+      console.log('[Fusion API] styleTag 매핑:', {
+        styleTag: styleResult.styleTag,
+        mappedTag: tag,
+        found: !!tag,
+      });
       if (tag && !allTags.includes(tag)) {
         allTags.push(tag);
+        console.log('[Fusion API] 태그 추가됨:', tag);
       }
+    }
+
+    console.log('[Fusion API] 최종 태그:', allTags);
+
+    // 태그가 없으면 기본 태그 추가 (안전장치)
+    if (allTags.length === 0) {
+      console.warn('[Fusion API] 태그가 없어서 기본 태그 추가');
+      allTags.push('NATURAL_LOVER'); // 기본값
     }
 
     // 지표 점수 계산
     const traitScores = calculateTraitScores(allTags, photoAnalysis, finalChatAnalysis);
+    console.log('[Fusion API] 지표 점수:', traitScores);
 
     // DNA 유형 결정
-    const dnaType = determineDNAType(allTags, traitScores);
-    const dnaMatchScore = calculateDNAMatchScore(allTags, dnaType);
+    let dnaType;
+    let dnaMatchScore;
+    try {
+      dnaType = determineDNAType(allTags, traitScores);
+      dnaMatchScore = calculateDNAMatchScore(allTags, dnaType);
+      console.log('[Fusion API] DNA 결정:', {
+        type: dnaType.type,
+        name: dnaType.name,
+        matchScore: dnaMatchScore,
+      });
+    } catch (error) {
+      console.error('[Fusion API] DNA 결정 에러:', error);
+      // 기본 DNA 타입 사용
+      const { DNA_TYPES } = require('@/lib/analysis/v5-ultimate/dna-types');
+      dnaType = DNA_TYPES.bear; // 기본값
+      dnaMatchScore = 70;
+    }
 
     // 숨은 니즈 통합
     const hiddenNeeds = mergeHiddenNeeds(photoAnalysis, finalChatAnalysis);

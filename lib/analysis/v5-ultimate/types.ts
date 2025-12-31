@@ -191,7 +191,10 @@ export interface FusionAnalysisResult {
 // V5 Ultimate 스토어 상태
 export interface V5UltimateState {
   sessionId: string | null;
-  currentStep: 'intro' | 'mood' | 'spaceInfo' | 'photo' | 'chat' | 'analyzing' | 'result';
+  currentStep:
+    | 'quickDiagnosis'  // 3초 진단 (첫 화면)
+    | 'spaceInfo'       // 집 정보 입력
+    | 'analyzing';      // 분석 중 (완료 후 바로 공정 선택으로 이동)
   uploadedPhoto: {
     url: string;
     file: File | null;

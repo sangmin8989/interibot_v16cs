@@ -6,6 +6,7 @@ import { Send, Lightbulb, ChevronRight, Loader2 } from 'lucide-react';
 import { StyleResult } from './StyleSelector';
 import { ChatMessage, PhotoAnalysisResult } from '@/lib/analysis/v5-ultimate/types';
 import { useSpaceInfoStore } from '@/lib/store/spaceInfoStore';
+import { getGreetingMessage, getFeedbackMessage, getQuestionIntroMessage, getCompletionMessage } from '@/lib/prompts/chat-messages';
 
 interface ChatOnboardingProps {
   styleResult: StyleResult | null;
@@ -45,9 +46,22 @@ export default function ChatOnboarding({ styleResult, photoAnalysis, onComplete 
   const questionCount = messages.filter(m => m.role === 'user').length;
   const progress = isComplete ? 100 : ((questionCount) / 5) * 100;
 
-  // 초기 질문 생성
+  // 초기 인사 메시지 및 질문 생성
   useEffect(() => {
-    if (!currentQuestion && !isLoadingQuestion && !isComplete) {
+    if (!currentQuestion && !isLoadingQuestion && !isComplete && messages.length === 0) {
+      // 초기 인사 메시지 추가
+      const greetingMessage: ChatMessage = {
+        role: 'assistant',
+        content: getGreetingMessage(styleResult),
+        timestamp: new Date().toISOString(),
+      };
+      setMessages([greetingMessage]);
+      
+      // 잠시 후 첫 질문 로드
+      setTimeout(() => {
+        loadNextQuestion();
+      }, 1000);
+    } else if (!currentQuestion && !isLoadingQuestion && !isComplete) {
       loadNextQuestion();
     }
   }, []);
@@ -88,13 +102,36 @@ export default function ChatOnboarding({ styleResult, photoAnalysis, onComplete 
       if (data.isComplete || !data.question) {
         setIsComplete(true);
         setCurrentQuestion(null);
+        
+        // 완료 축하 메시지 추가
+        const completionMessage: ChatMessage = {
+          role: 'assistant',
+          content: getCompletionMessage(),
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, completionMessage]);
+        
         // 완료 처리
-        onComplete({
-          answers,
-          insights,
-          messages,
-        });
+        setTimeout(() => {
+          onComplete({
+            answers,
+            insights,
+            messages: [...messages, completionMessage],
+          });
+        }, 1500);
         return;
+      }
+      
+      // 질문 전 안내 메시지 (선택적)
+      const introMessage = getQuestionIntroMessage(questionCount);
+      if (introMessage) {
+        const introMsg: ChatMessage = {
+          role: 'assistant',
+          content: introMessage,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, introMsg]);
+        await new Promise(resolve => setTimeout(resolve, 600));
       }
 
       // AI 질문 추가
@@ -191,6 +228,18 @@ export default function ChatOnboarding({ styleResult, photoAnalysis, onComplete 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
 
+    // 친근한 피드백 메시지 추가 (선택적)
+    const feedback = getFeedbackMessage(answer, currentQuestion?.question);
+    if (feedback && questionCount < 2) { // 처음 몇 질문에만 피드백
+      const feedbackMessage: ChatMessage = {
+        role: 'assistant',
+        content: feedback,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, feedbackMessage]);
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+
     // 간단한 인사이트 생성
     const insight = `💡 ${answer}에 대한 정보를 반영했어요`;
     setCurrentInsight(insight);
@@ -210,25 +259,37 @@ export default function ChatOnboarding({ styleResult, photoAnalysis, onComplete 
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      {/* 프로그레스 바 */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-[#9B9B9B]">
-            {questionCount + (currentQuestion ? 1 : 0)} / 5
-          </span>
-          {styleResult && (
-            <span className="text-sm text-[#B8956B] font-medium">
-              {styleResult.styleTag}
-            </span>
-          )}
+      {/* 상단 인트로 + 프로그레스 바 */}
+      <div className="mb-8 space-y-3">
+        <div className="p-4 rounded-2xl bg-[#FDFBF7] border border-[#E8E4DC] shadow-sm">
+          <p className="text-sm text-[#9B8C7A] flex items-center gap-2">
+            <span role="img" aria-label="chat">💬</span>
+            빠르게 톡하듯 눌러주시면 됩니다. (총 5문)
+          </p>
+          <p className="text-base text-[#4A3D33] mt-1">
+            지금 {questionCount + (currentQuestion ? 1 : 0)} / 5 질문 중이에요.
+          </p>
         </div>
-        <div className="h-2 bg-[#F7F3ED] rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-[#B8956B] rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.3 }}
-          />
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-[#9B9B9B]">
+              {questionCount + (currentQuestion ? 1 : 0)} / 5
+            </span>
+            {styleResult && (
+              <span className="text-sm text-[#B8956B] font-medium">
+                {styleResult.styleTag}
+              </span>
+            )}
+          </div>
+          <div className="h-2 bg-[#F7F3ED] rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-[#B8956B] rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
         </div>
       </div>
 
@@ -251,9 +312,12 @@ export default function ChatOnboarding({ styleResult, photoAnalysis, onComplete 
             transition={{ duration: 0.3 }}
           >
             {/* 질문 */}
-            <h2 className="text-3xl md:text-4xl font-bold text-[#1F1F1F] mb-8 text-center">
-              {currentQuestion.question}
-            </h2>
+            <div className="text-center mb-2">
+              <h2 className="text-3xl md:text-4xl font-bold text-[#1F1F1F]">
+                🤗 {currentQuestion.question}
+              </h2>
+              <p className="text-sm text-[#7A6A59] mt-2">버튼 톡톡 누르면 바로 다음 질문으로 넘어가요.</p>
+            </div>
 
             {/* 옵션 버튼들 */}
             <div className="space-y-3">

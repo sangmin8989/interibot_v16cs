@@ -16,6 +16,7 @@ import {
   normalizeProcessIds,
   getProcessLabel,
 } from '@/lib/data/process-options'
+import EstimatePreviewBar from '@/components/v5-ultimate/EstimatePreviewBar'
 
 /**
  * 저장 데이터 타입 (schemaVersion 포함)
@@ -275,6 +276,12 @@ function ProcessSelectPageContent() {
           </button>
         </div>
       </div>
+
+      {/* 실시간 견적 미리보기 바 (참고용) */}
+      <EstimatePreviewBar
+        pyeong={spaceInfo?.pyeong ?? null}
+        processCount={selectedProcesses.length}
+      />
     </main>
   )
 }

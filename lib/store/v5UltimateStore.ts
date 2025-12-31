@@ -24,7 +24,7 @@ interface V5UltimateStore extends V5UltimateState {
 
 const initialState: V5UltimateState = {
   sessionId: null,
-  currentStep: 'intro',
+  currentStep: 'quickDiagnosis', // 3초 진단부터 시작
   uploadedPhoto: null,
   chatHistory: [],
   chatAnalysis: null,
@@ -40,7 +40,7 @@ export const useV5UltimateStore = create<V5UltimateStore>()(
 
       initSession: () => {
         const sessionId = `v5_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        set({ sessionId, currentStep: 'spaceInfo' });
+        set({ sessionId, currentStep: 'quickDiagnosis' }); // 3초 진단부터 시작
       },
 
       setStep: (step) => set({ currentStep: step }),

@@ -52,6 +52,12 @@ interface ValidationResult {
     exists: boolean
     hasPrice: boolean
     count: number
+    validCount: number
+    gradeCount?: {
+      ARGEN_E: number
+      ARGEN_S: number
+      other: number
+    }
     missing: string[]
   }
   labor: {
@@ -83,6 +89,7 @@ async function validateMaterials(
       exists: false,
       hasPrice: false,
       count: 0,
+      validCount: 0,
       missing: [`자재 조회 오류: ${error.message}`],
     }
   }
@@ -92,6 +99,7 @@ async function validateMaterials(
       exists: false,
       hasPrice: false,
       count: 0,
+      validCount: 0,
       missing: ['자재 데이터 없음'],
     }
   }
@@ -101,23 +109,37 @@ async function validateMaterials(
   const hasS = data.some(m => m.grade === 'ARGEN_S' || m.grade === 'argen_s')
   const hasAnyGrade = hasE || hasS
 
-  // 가격 체크
-  const hasPrice = data.some(
-    m => (m.price && m.price > 0) || (m.price_argen && m.price_argen > 0)
+  // 가격 체크 (is_argen_standard도 확인)
+  const validMaterials = data.filter(
+    m => {
+      const hasPrice = (m.price && m.price > 0) || (m.price_argen && m.price_argen > 0)
+      const isArgenStandard = (m as any).is_argen_standard !== false
+      return hasPrice && isArgenStandard
+    }
   )
+  const hasPrice = validMaterials.length > 0
 
   const missing: string[] = []
   if (!hasAnyGrade) {
     missing.push('ARGEN_E 또는 ARGEN_S 등급 자재 없음')
   }
   if (!hasPrice) {
-    missing.push('가격이 0원이거나 NULL인 자재만 존재')
+    missing.push('가격이 0원이거나 NULL인 자재만 존재, 또는 is_argen_standard=false')
+  }
+  
+  // 상세 정보 추가
+  const gradeCount = {
+    ARGEN_E: data.filter(m => m.grade === 'ARGEN_E' || m.grade === 'argen_e').length,
+    ARGEN_S: data.filter(m => m.grade === 'ARGEN_S' || m.grade === 'argen_s').length,
+    other: data.filter(m => !['ARGEN_E', 'argen_e', 'ARGEN_S', 'argen_s'].includes(m.grade || '')).length,
   }
 
   return {
     exists: data.length > 0,
     hasPrice,
     count: data.length,
+    validCount: validMaterials.length,
+    gradeCount,
     missing,
   }
 }
@@ -164,12 +186,15 @@ async function validateLabor(processId: string): Promise<ValidationResult['labor
     missing.push('노무비 데이터 없음')
   }
 
-  // rate_per_person_day 체크
+  // rate_per_person_day 체크 (실제 컬럼명은 daily_rate)
   const hasRate =
     costData &&
-    costData.rate_per_person_day !== null &&
-    costData.rate_per_person_day !== undefined &&
-    Number(costData.rate_per_person_day) > 0
+    ((costData.rate_per_person_day !== null &&
+      costData.rate_per_person_day !== undefined &&
+      Number(costData.rate_per_person_day) > 0) ||
+     (costData.daily_rate !== null &&
+      costData.daily_rate !== undefined &&
+      Number(costData.daily_rate) > 0))
 
   if (!hasRate && costExists) {
     missing.push('rate_per_person_day가 0원이거나 NULL')
@@ -198,7 +223,10 @@ async function validateCategory(
 
   // 결과 출력
   console.log(`  자재:`)
-  console.log(`    존재: ${materials.exists ? '✅' : '❌'} (${materials.count}개)`)
+  console.log(`    존재: ${materials.exists ? '✅' : '❌'} (전체 ${materials.count}개, 유효 ${materials.validCount || 0}개)`)
+  if (materials.gradeCount) {
+    console.log(`    등급: ARGEN_E ${materials.gradeCount.ARGEN_E}개, ARGEN_S ${materials.gradeCount.ARGEN_S}개, 기타 ${materials.gradeCount.other}개`)
+  }
   console.log(`    가격: ${materials.hasPrice ? '✅' : '❌'}`)
   if (materials.missing.length > 0) {
     console.log(`    누락: ${materials.missing.join(', ')}`)

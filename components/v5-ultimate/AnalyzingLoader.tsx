@@ -98,7 +98,7 @@ export default function AnalyzingLoader({ styleResult, chatData }: AnalyzingLoad
       </div>
 
       {/* 컬러 팔레트 (스타일 선택한 경우) */}
-      {styleResult && (
+      {styleResult && styleResult.colorPalette && Array.isArray(styleResult.colorPalette) && styleResult.colorPalette.length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
