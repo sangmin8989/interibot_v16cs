@@ -11,8 +11,25 @@ import { calculateEstimate } from '@/lib/estimate/unified-calculator-v2';
 import type { EstimateInput } from '@/lib/estimate/types';
 
 export async function POST(request: NextRequest) {
-  try {
-    const input = await request.json();
+  // ===== Phase 0: 구버전 API 차단 =====
+  console.log('[DEPRECATED_API_BLOCK] 구버전 견적 API 접근 차단: /api/estimate/calculate');
+  
+  return NextResponse.json(
+    {
+      ok: false,
+      error: {
+        code: 'DEPRECATED_API',
+        severity: 'BLOCK',
+        userMessage: '이 API는 더 이상 사용되지 않습니다. 공식 견적 API를 사용해주세요.',
+        debug: {
+          deprecated: '/api/estimate/calculate',
+          official: '/api/estimate/v4',
+        },
+      },
+    },
+    { status: 410 } // 410 Gone
+  );
+  // ===== /Phase 0: 구버전 API 차단 =====
     
     console.log('📥 /calculate API 요청 받음 (통합 엔진 사용):', input);
     

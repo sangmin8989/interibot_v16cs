@@ -54,7 +54,7 @@ export default function FinalCTA() {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => scrollToSection('modes')}
+            onClick={() => router.push('/v5')}
             className="bg-white text-primary-600 rounded-full px-12 py-5 font-bold text-xl hover:bg-primary-50 transition-all shadow-2xl hover:shadow-3xl"
           >
             무료로 시작하기

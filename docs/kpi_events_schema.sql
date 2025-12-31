@@ -35,3 +35,10 @@ COMMENT ON COLUMN kpi_events.timestamp IS '이벤트 발생 시각';
 
 
 
+
+
+
+
+
+
+

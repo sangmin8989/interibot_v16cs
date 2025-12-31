@@ -15,10 +15,16 @@ export interface ProcessChange {
 
 /**
  * 옵션 변경 결과
+ * 
+ * 엔진 계약:
+ * - prioritize: 우선 적용
+ * - limit: 제한
+ * - hide: 제외
+ * - show/required 제거 (엔진 계약에 맞춤)
  */
 export interface OptionChange {
   optionId: string
-  action: 'show' | 'hide' | 'limit' | 'prioritize'
+  action: 'prioritize' | 'limit' | 'hide'
   value?: number // limit의 경우 최대 개수
   reason: string
 }
@@ -107,9 +113,9 @@ export function applyTagsToProcesses(
           { processId: 'bathroomSafety', action: 'required', reason: '안전 리스크 - 욕실 안전옵션 필수' }
         )
         optionChanges.push(
-          { optionId: 'slipPrevention', action: 'show', reason: '안전 리스크 - 미끄럼방지 필수' },
-          { optionId: 'handrail', action: 'show', reason: '안전 리스크 - 손잡이 필수' },
-          { optionId: 'thresholdRemoval', action: 'show', reason: '안전 리스크 - 턱제거 필수' }
+          { optionId: 'slipPrevention', action: 'prioritize', reason: '안전 리스크 - 미끄럼방지 필수' },
+          { optionId: 'handrail', action: 'prioritize', reason: '안전 리스크 - 손잡이 필수' },
+          { optionId: 'thresholdRemoval', action: 'prioritize', reason: '안전 리스크 - 턱제거 필수' }
         )
         break
 
@@ -126,19 +132,19 @@ export function applyTagsToProcesses(
         break
 
       case 'KITCHEN_IMPORTANT':
-        // 주방 공정 확장, 상세 옵션 노출
+        // 주방 공정 확장, 상세 옵션 우선 적용
         processChanges.push(
           { processId: 'kitchen', action: 'enable', reason: '주방 중요 - 공정 확장' }
         )
         optionChanges.push(
-          { optionId: 'kitchenOptions', action: 'show', reason: '주방 중요 - 상세 옵션 노출' }
+          { optionId: 'kitchenOptions', action: 'prioritize', reason: '주방 중요 - 상세 옵션 우선 적용' }
         )
         break
 
       case 'BATHROOM_COMFORT':
-        // 욕조 옵션 ON
+        // 욕조 옵션 우선 적용
         optionChanges.push(
-          { optionId: 'bathtub', action: 'show', reason: '욕실 여유 - 욕조 옵션 ON' }
+          { optionId: 'bathtub', action: 'prioritize', reason: '욕실 여유 - 욕조 옵션 우선 적용' }
         )
         break
 
@@ -177,4 +183,11 @@ function convertPyeongToNumber(range: string): number {
       return 25
   }
 }
+
+
+
+
+
+
+
 

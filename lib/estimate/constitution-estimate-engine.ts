@@ -329,7 +329,8 @@ function createLaborRequestForProcess(
   pyeong: number
 ): LaborRequest | null {
   // 공정별 노무 정보 매핑 (기본값, 실제는 DB에서 가져옴)
-  const processMapping: Record<ProcessId, {
+  // ⚠️ 'SYSTEM'은 실제 공정이 아니므로 제외
+  const processMapping: Record<Exclude<ProcessId, 'SYSTEM'>, {
     unit: 'm2' | 'EA' | 'SET' | 'day' | 'team'
     totalQuantity: (pyeong: number) => number
     dailyOutput: number
@@ -403,7 +404,12 @@ function createLaborRequestForProcess(
     },
   }
 
-  const mapping = processMapping[processId]
+  // 'SYSTEM'은 실제 공정이 아니므로 null 반환
+  if (processId === 'SYSTEM') {
+    return null
+  }
+
+  const mapping = processMapping[processId as Exclude<ProcessId, 'SYSTEM'>]
   if (!mapping) return null
 
   const totalQuantity = mapping.totalQuantity(pyeong)
@@ -836,7 +842,8 @@ function createProcessBlock(
  * 공정명 가져오기
  */
 function getProcessName(processId: ProcessId): string {
-  const names: Record<ProcessId, string> = {
+  // ⚠️ 'SYSTEM'은 실제 공정이 아니므로 제외
+  const names: Record<Exclude<ProcessId, 'SYSTEM'>, string> = {
     'demolition': '철거',
     'finish': '마감',
     'electric': '조명·전기',
@@ -848,6 +855,10 @@ function getProcessName(processId: ProcessId): string {
     'waterproof': '방수',
     'plumbing': '설비',
     'waste': '폐기물',
+  }
+  // 'SYSTEM'은 특수 값이므로 별도 처리
+  if (processId === 'SYSTEM') {
+    return '시스템'
   }
   return names[processId] || processId
 }
@@ -889,6 +900,13 @@ function calculateSummary(blocks: ProcessEstimateBlock[], pyeong: number) {
     costPerPyeong,
   }
 }
+
+
+
+
+
+
+
 
 
 

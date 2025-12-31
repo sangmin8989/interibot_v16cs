@@ -6,7 +6,7 @@
 
 import type { TagApplicationResult } from './tag-process-mapper'
 import { useProcessStore } from '@/lib/store/processStore'
-import type { SpaceId } from '@/lib/store/scopeStore'
+import type { SpaceId, ProcessCategory } from '@/types/spaceProcess'
 
 /**
  * 태그 결과를 견적 시스템에 적용
@@ -26,7 +26,7 @@ export function applyTagsToEstimate(
     const spaceProcessMap = mapProcessToSpaces(pc.processId, selectedSpaces)
 
     for (const [spaceId, category, value] of spaceProcessMap) {
-      if (pc.action === 'enable' || pc.action === 'required') {
+      if (pc.action === 'enable') {
         // 공정 ON
         setSpaceProcessSelection(spaceId, category, value)
       } else if (pc.action === 'disable') {
@@ -34,6 +34,7 @@ export function applyTagsToEstimate(
         setSpaceProcessSelection(spaceId, category, null)
       }
       // 'recommend'는 UI에서 표시만 (자동 적용 안 함)
+      // 'required' 제거 (엔진 계약에 맞춤)
     }
   }
 }
@@ -44,13 +45,13 @@ export function applyTagsToEstimate(
 function mapProcessToSpaces(
   processId: string,
   selectedSpaces: SpaceId[]
-): Array<[SpaceId, string, string]> {
-  const mappings: Array<[SpaceId, string, string]> = []
+): Array<[SpaceId, ProcessCategory, string]> {
+  const mappings: Array<[SpaceId, ProcessCategory, string]> = []
 
   // 공정 → 공간 매핑 규칙
   const processSpaceMap: Record<
     string,
-    Array<{ space: SpaceId | 'all'; category: string; value: string }>
+    Array<{ space: SpaceId | 'all'; category: ProcessCategory; value: string }>
   > = {
     waterproof: [
       { space: 'bathroom', category: 'bathroom_core', value: 'waterproof' },
@@ -61,24 +62,24 @@ function mapProcessToSpaces(
       { space: 'masterBedroom', category: 'wall_finish', value: 'insulation' },
     ],
     window: [
-      { space: 'living', category: 'window', value: 'window_replacement' },
+      { space: 'living', category: 'wall_finish', value: 'window_replacement' },
     ],
     plumbing: [
       { space: 'bathroom', category: 'bathroom_core', value: 'plumbing' },
       { space: 'kitchen', category: 'kitchen_core', value: 'plumbing' },
     ],
     closet: [
-      { space: 'masterBedroom', category: 'storage', value: 'closet' },
-      { space: 'room1', category: 'storage', value: 'closet' },
+      { space: 'masterBedroom', category: 'options', value: 'closet' },
+      { space: 'room1', category: 'options', value: 'closet' },
     ],
     shoeRack: [
       { space: 'entrance', category: 'entrance_core', value: 'shoeRack' },
     ],
     demolition: [
-      { space: 'all', category: 'structure', value: 'demolition' },
+      { space: 'all', category: 'wall_finish', value: 'demolition' },
     ],
     bathroomSafety: [
-      { space: 'bathroom', category: 'bathroom_options', value: 'safety' },
+      { space: 'bathroom', category: 'bathroom_core', value: 'safety' },
     ],
     kitchen: [
       { space: 'kitchen', category: 'kitchen_core', value: 'kitchen_full' },
@@ -118,4 +119,11 @@ export function applyTierRecommendations(
   // 추후 구현 필요
   console.log('등급 추천:', tierRecommendations)
 }
+
+
+
+
+
+
+
 

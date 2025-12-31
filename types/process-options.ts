@@ -1,10 +1,22 @@
 /**
- * 3단 옵션 구조
+ * 인테리봇 공정 옵션 타입 재수출
+ * 
+ * ⚠️ SSOT 타입은 lib/data/process-options.ts에서 재수출합니다.
+ * 견적 관련 타입은 하위 호환성을 위해 유지합니다.
+ * 
+ * @see Phase 1 최종 보완 지시문 4.2
+ */
+
+// SSOT 타입 재수출
+export type { ProcessId, ProcessOption } from '@/lib/data/process-options';
+
+/**
+ * 3단 옵션 구조 (견적 관련, 하위 호환성 유지)
  */
 type OptionTier = 'basic' | 'comfort' | 'premium';
 
 /**
- * 개별 옵션 항목
+ * 개별 옵션 항목 (견적 관련, 하위 호환성 유지)
  */
 interface ProcessOptionItem {
   id: string;           // 항목 ID (예: 'wallpaper', 'paint')
@@ -14,7 +26,7 @@ interface ProcessOptionItem {
 }
 
 /**
- * 3단계 옵션 구조
+ * 3단계 옵션 구조 (견적 관련, 하위 호환성 유지)
  */
 interface ProcessTierOptions {
   basic: ProcessOptionItem[];       // 필요한 만큼
@@ -23,7 +35,7 @@ interface ProcessTierOptions {
 }
 
 /**
- * 공정 정의
+ * 공정 정의 (견적 관련, 하위 호환성 유지)
  */
 interface ProcessDefinition {
   id: string;                        // 공정 ID (예: 'demolition', 'finish')
@@ -37,7 +49,7 @@ interface ProcessDefinition {
 }
 
 /**
- * 고객 선택 결과
+ * 고객 선택 결과 (견적 관련, 하위 호환성 유지)
  */
 interface ProcessSelection {
   processId: string;

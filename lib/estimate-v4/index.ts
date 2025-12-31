@@ -126,10 +126,20 @@ export async function calculateEstimateV4ForUI(
       personalityMatch: { score: 0, highlights: [] },
       warnings: [],
       errorMessage: error instanceof Error ? error.message : '알 수 없는 오류',
+      // ⚠️ 실패 케이스: 성향 분석 기반 추천이 아니므로 명시적으로 false/null 설정
+      hasPersonalityData: false,
+      personalityBasedMessage: null,
     }
   }
 }
 
 // 타입 재export
 export * from './types'
+
+
+
+
+
+
+
 

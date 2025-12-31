@@ -695,3 +695,10 @@ if (scores.family_composition >= 7 || familyInfo.required_items.length > 0) {
 
 
 
+
+
+
+
+
+
+

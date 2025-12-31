@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { getMaterialsByAreas, MaterialType, AREA_MATERIALS } from '@/lib/utils/materialMapper'
+import { callAIWithLimit } from '@/lib/api/ai-call-limiter'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -78,14 +79,26 @@ ${JSON.stringify(spaceInfo, null, 2)}
 위 정보를 바탕으로 선택된 공간에 필요한 자재 브랜드만 추천해주세요.
 선택되지 않은 공간의 자재는 포함하지 마세요.`
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
+    // Phase 4: AI 호출 래퍼 적용 (enableLimit=false)
+    const enableLimit = process.env.NEXT_PUBLIC_AI_RATE_LIMIT === 'true';
+    const sessionId = request.headers.get('x-session-id') || undefined;
+    
+    const response = await callAIWithLimit({
+      sessionId,
+      action: 'ESTIMATE_AI',
+      prompt: { systemPrompt, userPrompt },
+      enableLimit: false, // 🔒 Phase 4: 반드시 false
+      aiCall: async () => {
+        return await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.7,
+        });
+      },
     })
 
     const result = JSON.parse(response.choices[0]?.message?.content || '{}')

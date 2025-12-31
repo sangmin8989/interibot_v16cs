@@ -105,7 +105,10 @@ export function generateRiskMessages(
   answers: Record<string, string>
 ): string[] {
   const currentYear = new Date().getFullYear()
-  const buildingAge = currentYear - basicInfo.building_year
+  // ⚠️ V5 헌법 원칙: building_year는 선택 필드
+  const buildingAge = basicInfo.building_year !== undefined && basicInfo.building_year !== null
+    ? currentYear - basicInfo.building_year
+    : undefined
   const pyeongNum = convertPyeongToNumber(basicInfo.pyeong_range)
 
   const messages: string[] = []
@@ -116,7 +119,10 @@ export function generateRiskMessages(
     switch (tag) {
       case 'OLD_RISK_HIGH':
       case 'OLD_RISK_MEDIUM':
-        context.buildingAge = buildingAge
+        // ⚠️ V5 헌법 원칙: buildingAge가 undefined면 context에 추가하지 않음
+        if (buildingAge !== undefined) {
+          context.buildingAge = buildingAge
+        }
         break
 
       case 'STORAGE_RISK_HIGH':
@@ -164,4 +170,11 @@ function convertPyeongToNumber(range: string): number {
       return 25
   }
 }
+
+
+
+
+
+
+
 

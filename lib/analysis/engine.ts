@@ -9,8 +9,10 @@
 
 import { PREFERENCE_CATEGORIES, PreferenceCategory } from './questions/types';
 import { AnalysisMode, AnalysisRequest, AnalysisResult, PreferenceScores, VibeProfile } from './types';
-import { calculateScoresFromAnswers } from './answer-mappings';
+import { calculateScoresFromAnswers, getAnswerImpacts } from './answer-mappings';
 import { getTraitScoresFromAnswers } from '@/lib/db/adapters/personality-adapter';
+import { decisionImpactEngine } from './decision-impact/DecisionImpactEngine';
+import type { DecisionSummary } from './decision-impact/types';
 
 // 점수 범위 제한 함수
 const clamp = (value: number, min = 1, max = 10) => Math.min(max, Math.max(min, value));
@@ -213,6 +215,80 @@ export const buildPreferenceScores = async (
 
   return scores;
 };
+
+/**
+ * evidenceCount 계산 함수
+ * 
+ * 명세서 vFinal 기준:
+ * - 질문ID 단위로, 해당 질문이 영향을 준 카테고리 Set을 만든다
+ * - 각 카테고리의 evidenceCount는 "그 카테고리가 포함된 질문의 개수"로 계산한다
+ * 
+ * @param answers - 질문ID → 답변값 맵
+ * @returns 카테고리별 evidenceCount (질문 개수 기준)
+ */
+export function calculateEvidenceCounts(
+  answers: Record<string, unknown>
+): Record<PreferenceCategory, number> {
+  // 1) 질문별로 영향을 준 카테고리 집합 기록
+  const questionToCategories = new Map<string, Set<PreferenceCategory>>();
+
+  Object.entries(answers).forEach(([questionId, value]) => {
+    const answerValue = String(value ?? '');
+    const impacts = getAnswerImpacts(questionId, answerValue);
+    
+    if (!impacts || impacts.length === 0) return;
+
+    const categories = new Set<PreferenceCategory>();
+    impacts.forEach(i => categories.add(i.category));
+    questionToCategories.set(questionId, categories);
+  });
+
+  // 2) 카테고리별 evidenceCount 산출
+  const evidenceCounts: Record<PreferenceCategory, number> = {} as any;
+  
+  // 초기화 (모든 카테고리 0으로 시작)
+  PREFERENCE_CATEGORIES.forEach(cat => {
+    evidenceCounts[cat] = 0;
+  });
+
+  // 질문별로 카테고리 카운트
+  questionToCategories.forEach((categories) => {
+    categories.forEach(cat => {
+      evidenceCounts[cat] = (evidenceCounts[cat] || 0) + 1;
+    });
+  });
+
+  return evidenceCounts;
+}
+
+/**
+ * 성향 점수 + evidenceCount를 함께 계산하는 함수
+ * 
+ * 명세서 vFinal 기준:
+ * - buildPreferenceScores()는 유지하되, evidenceCount 계산을 추가
+ * - 기존 호출부와 호환성을 위해 래퍼 함수로 제공
+ * 
+ * @param answers - 질문ID → 답변값 맵
+ * @param spaceInfo - 공간 정보
+ * @param analysisMode - 분석 모드
+ * @returns 성향 점수와 evidenceCount
+ */
+export async function buildPreferenceScoresWithEvidence(
+  answers: Record<string, unknown>,
+  spaceInfo?: AnalysisRequest['spaceInfo'],
+  analysisMode: AnalysisMode = 'standard'
+): Promise<{
+  scores: PreferenceScores;
+  evidenceCounts: Record<PreferenceCategory, number>;
+}> {
+  // 기존 함수로 점수 계산
+  const scores = await buildPreferenceScores(answers, spaceInfo, analysisMode);
+  
+  // evidenceCount 계산 (질문 개수 기준)
+  const evidenceCounts = calculateEvidenceCounts(answers);
+  
+  return { scores, evidenceCounts };
+}
 
 const VIBE_PRESETS: Record<
   string,
@@ -640,9 +716,53 @@ export const buildAnalysisResult = async (payload: AnalysisRequest): Promise<Ana
 
   const normalizedAreas = normalizeSelectedAreas(selectedAreas);
   
-  // spaceInfo를 buildPreferenceScores에 전달 (비동기)
-  const preferenceScores = await buildPreferenceScores(preferences, spaceInfo, mode);
+  // ✅ 신규: buildPreferenceScoresWithEvidence 사용 (evidenceCount 포함)
+  const { scores: preferenceScores, evidenceCounts } = await buildPreferenceScoresWithEvidence(
+    preferences,
+    spaceInfo,
+    mode
+  );
   
+  // ✅ 신규: DecisionImpactEngine 실행
+  let decisionSummary: DecisionSummary | undefined;
+  let requestionTrigger: { needsRequestion: boolean; reason: string; validationQuestions: string[] } | undefined;
+  
+  try {
+    const decisionResult = decisionImpactEngine.execute({
+      scores: preferenceScores,
+      evidenceCounts,
+      spaceInfo,
+      discomfortDetail: undefined, // TODO: 불편 요소 상세 배열이 있으면 전달
+    });
+    decisionSummary = decisionResult.decisionSummary;
+    requestionTrigger = decisionResult.requestionTrigger;
+    
+    console.log('✅ DecisionImpactEngine 실행 완료:', {
+      coreCriteria: decisionSummary.coreCriteria,
+      appliedChangesCount: decisionSummary.appliedChanges.length,
+      risksCount: decisionSummary.risks.length,
+      needsRequestion: requestionTrigger?.needsRequestion || false,
+    });
+    
+    // 재질문 트리거가 있으면 로그 출력
+    if (requestionTrigger?.needsRequestion) {
+      console.warn('⚠️ [DecisionImpactEngine] 재질문 트리거:', {
+        reason: requestionTrigger.reason,
+        questions: requestionTrigger.validationQuestions,
+      });
+    }
+  } catch (error) {
+    console.error('❌ DecisionImpactEngine 실행 실패:', error);
+    // 실패 시 기본값 사용 (호환성 유지)
+    decisionSummary = {
+      coreCriteria: ['기본 분석'],
+      appliedChanges: ['변경 사항 없음'],
+      excludedItems: ['가정/제외 항목 없음'],
+      risks: ['리스크 없음'],
+    };
+  }
+  
+  // 기존 로직 유지 (호환성)
   const vibeProfile = deriveVibeProfile(mode, preferences, preferenceScores);
   const analysisId = `analysis_${Date.now()}`;
   const recommendations = buildRecommendations(preferenceScores, preferences, normalizedAreas);
@@ -652,6 +772,10 @@ export const buildAnalysisResult = async (payload: AnalysisRequest): Promise<Ana
     analysisId,
     mode,
     preferenceScores,
+    decisionSummary: decisionSummary ? {
+      coreCriteria: decisionSummary.coreCriteria,
+      appliedChangesCount: decisionSummary.appliedChanges.length,
+    } : null,
     spaceInfo: spaceInfo ? {
       familySizeRange: spaceInfo.familySizeRange,
       ageRanges: spaceInfo.ageRanges,
@@ -672,5 +796,9 @@ export const buildAnalysisResult = async (payload: AnalysisRequest): Promise<Ana
     spaceInfo,
     selectedAreas: normalizedAreas,
     createdAt: timestamp || new Date().toISOString(),
+    // ✅ 신규: decisionSummary 추가 (타입 확장 필요 시 AnalysisResult에 추가)
+    ...(decisionSummary && { decisionSummary } as any),
+    // ✅ 신규: requestionTrigger 추가 (재질문 필요 시)
+    ...(requestionTrigger?.needsRequestion && { requestionTrigger } as any),
   };
 };

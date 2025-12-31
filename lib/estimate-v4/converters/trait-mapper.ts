@@ -109,3 +109,10 @@ export const PROCESS_TO_V3_TRAIT_MAP: Record<string, string[]> = {
   'window': ['소음민감도', '조명취향'],
 }
 
+
+
+
+
+
+
+

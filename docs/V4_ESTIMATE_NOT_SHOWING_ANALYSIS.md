@@ -318,3 +318,10 @@ if (!estimate.breakdown || estimate.breakdown.length === 0) {
 
 **분석 완료!** 🎉
 
+
+
+
+
+
+
+

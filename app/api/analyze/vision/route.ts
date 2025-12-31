@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { callAIWithLimit } from '@/lib/api/ai-call-limiter'
 
 // TODO: .env.local에 OPENAI_API_KEY를 설정하세요
 const openai = new OpenAI({
@@ -24,12 +25,22 @@ export async function POST(request: NextRequest) {
       imageUrlForAPI = imageUrl
     }
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: `당신은 인테리어 전문가입니다. 업로드된 사진을 분석하여 다음 항목을 JSON 형식으로 반환하세요:
+    // Phase 4: AI 호출 래퍼 적용 (enableLimit=false)
+    const enableLimit = process.env.NEXT_PUBLIC_AI_RATE_LIMIT === 'true';
+    const sessionId = request.headers.get('x-session-id') || undefined;
+    
+    const response = await callAIWithLimit({
+      sessionId,
+      action: 'VISION_ANALYSIS',
+      prompt: { imageUrl: imageUrlForAPI },
+      enableLimit: false, // 🔒 Phase 4: 반드시 false
+      aiCall: async () => {
+        return await openai.chat.completions.create({
+          model: 'gpt-4-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `당신은 인테리어 전문가입니다. 업로드된 사진을 분석하여 다음 항목을 JSON 형식으로 반환하세요:
 
 {
   "style": "모던|내추럴|미니멀|북유럽|빈티지|모던클래식|호텔식",
@@ -45,19 +56,21 @@ export async function POST(request: NextRequest) {
 }
 
 반드시 JSON 형식으로만 응답하세요.`,
-        },
-        {
-          role: 'user',
-          content: [
+            },
             {
-              type: 'image_url',
-              image_url: { url: imageUrlForAPI },
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: imageUrlForAPI },
+                },
+              ],
             },
           ],
-        },
-      ],
-      response_format: { type: 'json_object' },
-      max_tokens: 2000,
+          response_format: { type: 'json_object' },
+          max_tokens: 2000,
+        });
+      },
     })
 
     const analysisText = response.choices[0]?.message?.content

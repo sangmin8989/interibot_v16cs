@@ -34,7 +34,7 @@ export async function getMaterialPriceStrict(
     
     // 브랜드 컬럼 목록 (select에 포함)
     const brandColumns = ['brand_basic', 'brand_standard', 'brand_argen', 'brand_premium']
-    const selectFields = `id, material_code, phase_id, category_1, category_2, category_3, product_name, ${brandColumns.join(', ')}, unit, is_argen_standard, argen_priority, price_argen, price`
+    const selectFields = `id, material_code, phase_id, category_1, category_2, category_3, product_name, grade, ${brandColumns.join(', ')}, unit, is_argen_standard, argen_priority, price_argen, price`
     
     let query = supabase
       .from('materials')
@@ -50,14 +50,23 @@ export async function getMaterialPriceStrict(
     // 아르젠 기준
     query = query.eq('is_argen_standard', true)
     
-    // 등급별 브랜드 컬럼이 null이 아닌 자재만 조회
-    query = query.not(brandColumn, 'is', null)
-    
-    // 정렬: ARGEN_E는 가격 오름차순, 나머지는 내림차순
-    const isAscending = brandColumn === 'brand_basic'
-    query = query.order('price', { ascending: isAscending, nullsFirst: false })
-    
-    query = query.limit(1)
+    // 등급별 자재 필터링
+    // 1. grade 컬럼이 설정된 자재: grade로 필터
+    // 2. grade 없는 자재: brandColumn으로 폴백
+    const gradeValue = 
+      brandColumn === 'brand_basic' ? 'basic' :
+      brandColumn === 'brand_argen' ? 'argen' :
+      brandColumn === 'brand_premium' ? 'premium' :
+      'argen' // 기본값
+
+    // grade 우선, 없으면 brandColumn 폴백
+    query = query.or(`grade.eq.${gradeValue},and(grade.is.null,${brandColumn}.not.is.null)`)
+
+    // 정렬: basic은 저가순, 나머지는 고가순
+    const isAscending = gradeValue === 'basic'
+    query = query
+      .order('price_argen', { ascending: isAscending, nullsFirst: false })
+      .limit(1)
 
     const { data, error } = await query.maybeSingle()
 
@@ -65,7 +74,8 @@ export async function getMaterialPriceStrict(
     if (error) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재 DB 조회 오류: ${error.message})`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재 DB 조회 오류: ${error.message})`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
@@ -73,42 +83,82 @@ export async function getMaterialPriceStrict(
     if (!data) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재: ${request.category.category1}/${request.category.category2})`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재: ${request.category.category1}/${request.category.category2})`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
+
+    // ✅ 타입 안정성: data는 null 체크를 통과했으므로 타입 단언 사용
+    type MaterialRow = {
+      id: string
+      material_code: string
+      product_name: string
+      category_1: string
+      category_2: string
+      category_3?: string
+      grade?: string
+      brand_basic?: string
+      brand_standard?: string
+      brand_argen?: string
+      brand_premium?: string
+      brand_name?: string
+      unit: string
+      price?: number
+      price_argen?: number
+      is_argen_standard: boolean
+      argen_priority?: number
+    }
+    // ⚠️ Supabase 타입 추론 이슈로 인해 unknown을 거쳐 타입 단언
+    const materialData = data as unknown as MaterialRow
 
     // ✅ 헌법 v1 봉인: 가격이 없거나 0이면 즉시 실패
     // 등급별 브랜드 컬럼에 해당하는 가격 사용
     const brandPriceKey = brandColumn === 'brand_basic' ? 'price' : 
                          brandColumn === 'brand_standard' ? 'price' :
                          brandColumn === 'brand_argen' ? 'price_argen' : 'price'
-    const finalPrice = data.price ?? data.price_argen ?? null
+    const finalPrice = materialData.price ?? materialData.price_argen ?? null
 
     // ✅ 가격 검증: 0이거나 null이면 즉시 throw
     if (finalPrice === null || finalPrice === undefined || finalPrice <= 0) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재 가격 없음: ${data.product_name})`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재 가격 없음: ${materialData.product_name})`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
     // ✅ SUCCESS만 반환
     // 등급별 브랜드명 선택
-    const brandName = data[brandColumn] || data.brand_argen || data.brand_name || ''
+    const brandColumnValue = materialData[brandColumn as keyof MaterialRow]
+    const brandName: string = (typeof brandColumnValue === 'string' ? brandColumnValue : '') 
+      || materialData.brand_argen 
+      || materialData.brand_name 
+      || ''
+    
+    // ✅ 디버깅 로그 추가
+    console.log('✅ [헌법] 자재 선택 완료:', {
+      brandColumn,
+      gradeValue,
+      materialGrade: materialData.grade || '(null)',
+      selectedBrand: brandName,
+      productName: materialData.product_name,
+      price: finalPrice,
+      category: `${materialData.category_1}/${materialData.category_2}`,
+    })
     
     return {
-      materialId: data.material_id || data.id,
-      materialCode: data.material_code,
+      materialId: materialData.id,
+      materialCode: materialData.material_code,
       brandName,
-      productName: data.product_name,
+      productName: materialData.product_name,
       spec: request.spec || '',
-      category1: data.category_1,
-      category2: data.category_2,
-      category3: data.category_3,
-      unit: data.unit || request.quantity.unit,
+      category1: materialData.category_1,
+      category2: materialData.category_2,
+      category3: materialData.category_3,
+      unit: materialData.unit || request.quantity.unit,
       price: finalPrice, // 반드시 > 0
-      isArgenStandard: data.is_argen_standard || false,
-      argenPriority: data.argen_priority,
+      isArgenStandard: materialData.is_argen_standard || false,
+      argenPriority: materialData.argen_priority,
     }
   } catch (error) {
     // ✅ EstimateValidationError는 그대로 throw
@@ -118,10 +168,18 @@ export async function getMaterialPriceStrict(
     // ✅ 기타 에러는 EstimateValidationError로 변환
     throw new EstimateValidationError({
       processId: request.processId,
-      reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재 조회 예외: ${error instanceof Error ? error.message : '알 수 없는 오류'})`
+      reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (자재 조회 예외: ${error instanceof Error ? error.message : '알 수 없는 오류'})`,
+      failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
     })
   }
 }
+
+
+
+
+
+
+
 
 
 

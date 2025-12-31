@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { callAIWithLimit } from '@/lib/api/ai-call-limiter'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -157,16 +158,28 @@ export async function POST(request: NextRequest) {
 
     console.log('🤖 OpenAI API 호출 시작...')
     
+    // Phase 4: AI 호출 래퍼 적용 (enableLimit=false)
+    const enableLimit = process.env.NEXT_PUBLIC_AI_RATE_LIMIT === 'true';
+    const sessionId = request.headers.get('x-session-id') || undefined;
+    
     let response
     try {
-      response = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.7,
+      response = await callAIWithLimit({
+        sessionId,
+        action: 'TRAIT_ANALYSIS',
+        prompt: { systemPrompt, userPrompt },
+        enableLimit: false, // 🔒 Phase 4: 반드시 false
+        aiCall: async () => {
+          return await openai.chat.completions.create({
+            model: 'gpt-3.5-turbo',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.7,
+          });
+        },
       })
       console.log('✅ OpenAI API 응답 받음')
     } catch (openaiError: any) {

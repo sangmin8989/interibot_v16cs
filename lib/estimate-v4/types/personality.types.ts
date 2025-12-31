@@ -91,3 +91,10 @@ export interface PersonalityResultV4 {
   analyzedAt: string
 }
 
+
+
+
+
+
+
+

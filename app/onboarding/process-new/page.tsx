@@ -47,19 +47,15 @@ export default function ProcessNewPage() {
       return PROCESS_DEFINITIONS;
     }
     
+    // TODO: ProcessOption 타입으로 전환 시 applicableSpaces 로직 재구현 필요
+    // 현재는 모든 공정을 표시 (하위 호환성)
     return PROCESS_DEFINITIONS.filter(process => {
       // 철거는 항상 표시
-      if (process.id === 'demolition') return true;
+      if (process.id === 'DEMOLITION') return true;
       
-      // applicableSpaces가 'all'이면 항상 표시
-      if (process.applicableSpaces.includes('all')) return true;
-      
-      // 선택된 공간과 공정의 applicableSpaces가 겹치는지 확인
-      const hasMatchingSpace = process.applicableSpaces.some(space => 
-        activeSpaceIds.includes(space as any)
-      );
-      
-      return hasMatchingSpace;
+      // ProcessOption에는 applicableSpaces가 없으므로 일단 모든 공정 표시
+      // 향후 SSOT에 applicableSpaces 추가 또는 별도 매핑 필요
+      return true;
     });
   }, [activeSpaceIds, selectedSpaces]);
   
@@ -88,7 +84,7 @@ export default function ProcessNewPage() {
     const result: Record<string, { enabled: boolean; tier: OptionTier }> = {};
     PROCESS_DEFINITIONS.forEach(process => {
       result[process.id] = {
-        enabled: process.id !== 'demolition', // 철거는 기본 비활성화
+        enabled: process.id !== 'DEMOLITION', // 철거는 기본 비활성화
         tier: 'comfort' as OptionTier, // 기본값
       };
     });
@@ -247,7 +243,7 @@ export default function ProcessNewPage() {
           ) : (
             filteredProcesses.map(process => {
               // 철거는 별도 표시
-              if (process.id === 'demolition') {
+              if (process.id === 'DEMOLITION') {
                 return (
                   <div 
                     key={process.id}
@@ -256,7 +252,7 @@ export default function ProcessNewPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-lg">🔨</span>
                       <div>
-                        <h3 className="font-semibold">{process.name}</h3>
+                        <h3 className="font-semibold">{process.label}</h3>
                         <p className="text-sm text-gray-500">
                           선택한 공정에 따라 자동 연동됩니다
                         </p>
@@ -293,12 +289,18 @@ export default function ProcessNewPage() {
 
                   {/* 티어 선택기 */}
                   <div className={selection.enabled ? '' : 'opacity-50'}>
-                    <TierOptionSelector
-                      process={process}
+                    {/* TODO: ProcessOption 타입으로 전환 시 TierOptionSelector 수정 필요 */}
+                    {/* 임시로 주석 처리 - Phase 1에서는 SSOT 전환만 수행 */}
+                    {/* <TierOptionSelector
+                      process={process as any}
                       selectedTier={selection.tier}
                       onTierChange={(tier) => changeTier(process.id, tier)}
                       disabled={!selection.enabled}
-                    />
+                    /> */}
+                    <div className="p-4 border rounded-lg">
+                      <h3 className="font-semibold">{process.label}</h3>
+                      <p className="text-sm text-gray-500">티어 선택 기능은 재구현 중입니다</p>
+                    </div>
                   </div>
                 </div>
               );

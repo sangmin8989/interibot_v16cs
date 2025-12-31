@@ -377,3 +377,10 @@ export function getProcessesByCategory(category: 'bathroom' | 'living' | 'kitche
 
 
 
+
+
+
+
+
+
+

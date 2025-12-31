@@ -117,3 +117,10 @@ export function logError(module: string, error: unknown) {
   logger.error(module, '에러 발생', error)
 }
 
+
+
+
+
+
+
+

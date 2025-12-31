@@ -5,6 +5,7 @@
  */
 
 import { EstimateValidationError } from '@/lib/types/헌법_견적_타입'
+import type { ProcessId } from '@/lib/types/헌법_견적_타입'
 import type { MaterialItemV4, LaborItemV4 } from '../../types'
 
 /**
@@ -14,7 +15,7 @@ import type { MaterialItemV4, LaborItemV4 } from '../../types'
  * - 수량 0 체크
  */
 export function validateProcessBlock(
-  processId: string,
+  processId: ProcessId,
   materials: MaterialItemV4[],
   labor: LaborItemV4
 ): void {
@@ -59,7 +60,7 @@ export function validateProcessBlock(
  * 안전한 검증 래퍼 (에러 → 실패 결과 반환)
  */
 export function safeValidateProcessBlock(
-  processId: string,
+  processId: ProcessId,
   materials: MaterialItemV4[],
   labor: LaborItemV4
 ): { isValid: boolean; error?: string } {
@@ -73,4 +74,11 @@ export function safeValidateProcessBlock(
     return { isValid: false, error: '알 수 없는 검증 오류' }
   }
 }
+
+
+
+
+
+
+
 

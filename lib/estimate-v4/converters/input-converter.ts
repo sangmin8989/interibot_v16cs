@@ -55,41 +55,34 @@ export function toV3TraitEngineInput(
  * V3는 한글 키를 사용하므로 반드시 변환 필요
  */
 export function toV3Indicators(scores: TraitScoreV4[]): TraitIndicators12 {
-  const result: Record<string, number> = {}
+  // ⚠️ V4/V3 레거시: TraitIndicators12 타입을 처음부터 정확히 생성
+  // V5와는 무관하지만 빌드 통과를 위해 타입 안정성 보장
+  const result: TraitIndicators12 = {
+    수납중요도: 50,
+    동선중요도: 50,
+    조명취향: 50,
+    소음민감도: 50,
+    관리민감도: 50,
+    스타일고집도: 50,
+    색감취향: 50,
+    가족영향도: 50,
+    반려동물영향도: 50,
+    예산탄력성: 50,
+    공사복잡도수용성: 50,
+    집값방어의식: 50,
+  }
 
   for (const score of scores) {
     // V4 영문 키 → V3 한글 키로 변환
     const v3Key = V4_EN_TO_V3_KO[score.traitCode]
-    if (v3Key) {
+    if (v3Key && v3Key in result) {
       // V3는 0-100 범위, V4는 1-10 범위이므로 변환 필요
       // V4 score (1-10) → V3 (0-100): score * 10
-      result[v3Key] = score.score * 10
+      result[v3Key as keyof TraitIndicators12] = score.score * 10
     }
   }
 
-  // 누락된 필드는 기본값 50 (V3 한글 키로)
-  const requiredKoFields = [
-    '수납중요도',
-    '동선중요도',
-    '조명취향',
-    '소음민감도',
-    '관리민감도',
-    '스타일고집도',
-    '색감취향',
-    '가족영향도',
-    '반려동물영향도',
-    '예산탄력성',
-    '공사복잡도수용성',
-    '집값방어의식',
-  ]
-
-  for (const field of requiredKoFields) {
-    if (!(field in result)) {
-      result[field] = 50 // V3 기본값
-    }
-  }
-
-  return result as TraitIndicators12
+  return result
 }
 
 /**
@@ -127,4 +120,11 @@ export function toV3ProcessEngineInput(
     budget: budget.flexibility as 'low' | 'medium' | 'high' | 'premium',
   }
 }
+
+
+
+
+
+
+
 

@@ -6,6 +6,7 @@ import { Check } from 'lucide-react'
 import { modeConfigs, type AnalysisMode, type Question, type AnswerState, type QuestionAnswer } from '@/lib/data/personalityQuestions'
 import { usePersonalityStore } from '@/lib/store/personalityStore'
 import { useSpaceInfoStore } from '@/lib/store/spaceInfoStore'  // spaceInfo 추가
+import { usePersonalityV5Store } from '@/lib/store/personalityV5.store'  // V5 결과 전용 Store
 import { decideSingleCriteria, generateCriteriaDeclaration } from '@/lib/analysis/decision-criteria'
 import MBTISelector from '@/components/onboarding/vibe/MBTISelector'
 import BloodTypeSelector from '@/components/onboarding/vibe/BloodTypeSelector'
@@ -27,6 +28,9 @@ function PersonalityContent() {
   const setHasDecisionCriteria = usePersonalityStore((state) => state.setHasDecisionCriteria)
   const setDecisionCriteria = usePersonalityStore((state) => state.setDecisionCriteria)
   const { spaceInfo } = useSpaceInfoStore()  // spaceInfo 가져오기
+  
+  // ✅ V5 결과 전용 Store
+  const setV5Result = usePersonalityV5Store((state) => state.setV5Result)
   
   // Phase 2: 답변 상태 관리 (answerState + answerValue)
   const [localAnswers, setLocalAnswers] = useState<Record<string, QuestionAnswer>>({})
@@ -370,10 +374,27 @@ function PersonalityContent() {
             
             // V5 결과 Store에 저장
             if (result.success && result.result) {
-              setV5Result(result.result)
+              // ✅ DecisionImpactEngine 결과를 PersonalityV5Result 형식으로 변환
+              // TODO: API가 DecisionImpactEngine 결과를 반환하도록 수정 필요
+              // 현재는 임시로 변환 (API 수정 후 제거)
+              const v5Result: import('@/lib/analysis/decision-impact/v5-result.types').PersonalityV5Result = {
+                decisionSummary: {
+                  coreCriteria: result.result.decisionSummary?.coreCriteria || [],
+                  appliedChanges: result.result.decisionSummary?.appliedChanges || [],
+                  excludedItems: result.result.decisionSummary?.excludedItems || [],
+                  risks: result.result.decisionSummary?.risks || result.result.riskMessages || [],
+                },
+                validation: {
+                  passed: result.result.validation?.passed || false,
+                  reasons: result.result.validation?.reasons,
+                },
+              }
+              
+              setV5Result(v5Result)
               console.log('💾 V5 결과 저장 완료:', {
-                tags: result.result.tags.tags,
-                validation: result.result.validation.passed,
+                coreCriteria: v5Result.decisionSummary.coreCriteria,
+                appliedChangesCount: v5Result.decisionSummary.appliedChanges.length,
+                validation: v5Result.validation.passed,
               })
             }
           } else {

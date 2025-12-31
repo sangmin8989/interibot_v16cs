@@ -38,7 +38,8 @@ export type ProcessId =
   | 'storage'      // 수납
   | 'waterproof'   // 방수 (욕실/베란다 필수 연동)
   | 'plumbing'     // 설비 (욕실/주방 필수 연동)
-  | 'waste';       // 폐기물 (목공/철거 필수 연동)
+  | 'waste'        // 폐기물 (목공/철거 필수 연동)
+  | 'SYSTEM';      // 시스템 레벨 검증 에러 (특정 공정이 아닌 전체 시스템 문제, 엔진/입력 검증용)
 
 /** 전체 공정 / 부분 공정 (헌법 5-2: 명시적 선택만) */
 export type ProcessMode = 'FULL' | 'PARTIAL';
@@ -652,18 +653,28 @@ export class EstimateValidationError extends Error {
   code: 'PROCESS_BLOCK_INVALID'
   processId: ProcessId
   reason: string
+  failedAt?: 'MATERIAL_OR_LABOR_VALIDATION' | 'ENGINE_VALIDATION'
 
   constructor(params: {
     processId: ProcessId
     reason: string
+    failedAt?: 'MATERIAL_OR_LABOR_VALIDATION' | 'ENGINE_VALIDATION'
   }) {
     super(`견적 검증 실패 [${params.processId}]: ${params.reason}`)
     this.name = 'EstimateValidationError'
     this.code = 'PROCESS_BLOCK_INVALID'
     this.processId = params.processId
     this.reason = params.reason
+    this.failedAt = params.failedAt
   }
 }
+
+
+
+
+
+
+
 
 
 

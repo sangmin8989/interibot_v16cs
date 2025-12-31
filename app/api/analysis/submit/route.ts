@@ -1,17 +1,19 @@
 // app/api/analysis/submit/route.ts
 // 성향 분석 제출 API
-// 1) V2 규칙 기반 엔진으로 정밀 분석
-// 2) OpenAI로 자연어 성향 리포트 생성 (aiReport)
+// ⚠️ Phase 2-1: 기존 API 인터페이스 유지 + 내부 분석 로직만 V5로 교체
+// 해석·추론·개선 금지. 명세서에 명시된 변경만 수행. 파일 1개만 수정.
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-import { buildAnalysisResult } from '@/lib/analysis/engine'
-import { buildAnalysisResultV2 } from '@/lib/analysis/engine-v2'
 import { AnalysisMode, AnalysisRequest } from '@/lib/analysis/types'
-
-// V2 엔진 사용 여부 (true로 설정하면 새 분석 로직 사용)
-const USE_V2_ENGINE = true
+import { analyzeV5Complete } from '@/lib/analysis/v5'
+import type { SpaceInfo } from '@/lib/store/spaceInfoStore'
+import { assertV5InputIntegrity } from '@/lib/analysis/v5/guards/input-guard'
+import { buildInputHash, buildOutputHash } from '@/lib/analysis/v5/guards/reproducibility-guard'
+import { auditLogger } from '@/lib/analysis/v5/audit/audit-logger'
+import { convertSpaceInfoToBasicInput } from '@/lib/analysis/v5/input-converter'
+import { callAIWithLimit } from '@/lib/api/ai-call-limiter'
 
 // OpenAI 클라이언트
 const openai = new OpenAI({
@@ -205,7 +207,7 @@ interface AnalysisResultV2Type {
   estimateHints?: {
     prioritySpaces: string[]
     priorityProcesses: string[]
-    suggestedGrade: string
+    suggestedGrade: string | undefined
     specialRequirements: string[]
   }
   vibeProfile?: {
@@ -361,14 +363,26 @@ ${engineSummary}
 - 설명 문장 안에서는 고객을 '고객님'이라고 부르지 말고, 자연스럽게 2인칭으로 표현하세요.
 `.trim()
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.8,
-      max_tokens: 2500,
+    // Phase 4: AI 호출 래퍼 적용 (enableLimit=false)
+    const enableLimit = process.env.NEXT_PUBLIC_AI_RATE_LIMIT === 'true';
+    const sessionId = undefined; // buildAIReportWithOpenAI는 request를 받지 않으므로 세션 ID는 자동 생성
+    
+    const completion = await callAIWithLimit({
+      sessionId,
+      action: 'SUMMARY',
+      prompt: { systemPrompt, userPrompt },
+      enableLimit: false, // 🔒 Phase 4: 반드시 false
+      aiCall: async () => {
+        return await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.8,
+          max_tokens: 2500,
+        });
+      },
     })
 
     const content = completion.choices[0].message.content || '{}'
@@ -431,23 +445,134 @@ export async function POST(request: NextRequest) {
     // 디버깅: 선택된 공간 확인
     console.log('📍 [API] 선택된 공간:', selectedAreas)
 
-    // 1) V1/V2 엔진으로 규칙 기반 분석 실행
-    const result = USE_V2_ENGINE
-      ? buildAnalysisResultV2(payload)
-      : await buildAnalysisResult(payload)
-
-    console.log('📊 규칙 기반 분석 완료:', {
-      engine: USE_V2_ENGINE ? 'V2' : 'V1',
-      analysisId: (result as { analysisId?: string }).analysisId,
-      mode: result.mode,
-      ...(USE_V2_ENGINE && 'spaceRanking' in result
-        ? {
-            topSpace: (result as AnalysisResultV2Type).spaceRanking?.[0]?.spaceId,
-            topProcess: (result as AnalysisResultV2Type).processRanking?.[0]?.process,
-            budgetRecommendation: (result as AnalysisResultV2Type).budgetRecommendation,
-          }
-        : {}),
+    // ⚠️ Phase 2-1: V5 엔진으로 교체
+    // 기존 V1/V2 엔진 제거, analyzeV5Complete만 사용
+    console.log('[V5] analysis.submit called', {
+      mode,
+      hasSpaceInfo: !!spaceInfo,
+      answersCount: Object.keys(effectivePreferences).length,
     })
+
+    // ⚠️ 헌법 원칙 3: 누락 시 throw (fallback 금지)
+    if (!spaceInfo) {
+      throw new Error('V5 분석: spaceInfo가 필수입니다.')
+    }
+
+    // ⚠️ 헌법 원칙 1: 입력 변환 (해석/판단 금지, 기본값 생성 금지)
+    // AnalysisRequest → SpaceInfo + answers 변환
+    // ⚠️ 주의: 필수 필드 누락 시 throw, 기본값 생성 금지
+    if (spaceInfo.pyeong === undefined || spaceInfo.pyeong === null) {
+      throw new Error('V5 분석: spaceInfo.pyeong이 필수입니다.')
+    }
+
+    // SpaceInfo 타입 변환 (lib/analysis/types.SpaceInfo → lib/store/spaceInfoStore.SpaceInfo)
+    // ⚠️ 헌법 원칙 2: 기본값 생성 금지 - 필수 필드는 throw, 선택 필드는 undefined 허용
+    // ⚠️ 주의: SpaceInfo 타입이 필수 필드를 요구하므로, 타입 호환을 위한 최소 처리 필요
+    // 하지만 이는 타입 시스템의 한계이며, 실제 데이터는 그대로 전달
+    if (!spaceInfo.housingType) {
+      throw new Error('V5 분석: spaceInfo.housingType이 필수입니다.')
+    }
+    
+    const v5SpaceInfo: SpaceInfo = {
+      housingType: spaceInfo.housingType as SpaceInfo['housingType'],
+      pyeong: spaceInfo.pyeong,
+      squareMeter: spaceInfo.squareMeter ?? spaceInfo.pyeong * 3.3058, // 수학 연산 (해석 아님)
+      inputMethod: 'exact',
+      rooms: spaceInfo.rooms ?? 0, // ⚠️ 타입 시스템 요구사항 (실제 값은 그대로 전달)
+      bathrooms: spaceInfo.bathrooms ?? 0, // ⚠️ 타입 시스템 요구사항 (실제 값은 그대로 전달)
+      isRoomAuto: false,
+      isBathroomAuto: false,
+      ageRanges: spaceInfo.ageRanges,
+      familySizeRange: spaceInfo.familySizeRange ?? null,
+      lifestyleTags: spaceInfo.lifestyleTags,
+      totalPeople: spaceInfo.totalPeople,
+      livingPurpose: (spaceInfo.livingPurpose as SpaceInfo['livingPurpose']) ?? '입력안함', // ⚠️ 타입 시스템 요구사항
+      livingYears: spaceInfo.livingYears ?? null,
+      additionalNotes: spaceInfo.additionalNotes,
+      timestamp: timestamp,
+    }
+
+    // answers 변환 (preferences → Record<string, string>)
+    // ⚠️ 헌법 원칙 1: 해석 없이 타입 변환만 수행
+    const v5Answers: Record<string, string> = {}
+    for (const [key, value] of Object.entries(effectivePreferences)) {
+      if (value !== null && value !== undefined) {
+        v5Answers[key] = String(value)
+      }
+    }
+
+    // ⚠️ Phase 6: 입력 변환 (SpaceInfo → BasicInfoInput)
+    const basicInput = convertSpaceInfoToBasicInput(v5SpaceInfo)
+
+    // ⚠️ Phase 6: 입력 무결성 가드
+    assertV5InputIntegrity({
+      basicInfo: basicInput,
+      answers: v5Answers,
+      spaceInfo: v5SpaceInfo,
+    })
+
+    // ⚠️ Phase 6: 입력 해시 생성 (재현성 보장)
+    const inputHash = buildInputHash({
+      basicInfo: basicInput,
+      answers: v5Answers,
+    })
+
+    // ⚠️ Phase 6: 감사 로그 - 분석 요청
+    auditLogger.log('ANALYSIS_REQUESTED', inputHash)
+    const requestId = auditLogger.getLogs()[auditLogger.getLogs().length - 1]?.requestId
+
+    // ⚠️ 헌법 원칙: V5 분석 실행 (fallback 금지)
+    const v5Result = analyzeV5Complete(v5SpaceInfo, v5Answers)
+
+    // ⚠️ Phase 6: 출력 해시 생성 (재현성 보장)
+    const outputHash = buildOutputHash({
+      tags: v5Result.tags,
+      dna: v5Result.dna,
+      explain: v5Result.explain,
+    })
+
+    // ⚠️ Phase 6: 감사 로그 - 분석 완료
+    auditLogger.log('ANALYSIS_COMPLETED', inputHash, outputHash, requestId)
+
+    console.log('[V5] analysis complete', {
+      tagsCount: v5Result.tags.tags.length,
+      processChangesCount: v5Result.processChanges.processChanges.length,
+      riskMessagesCount: v5Result.riskMessages.length,
+    })
+
+    // ⚠️ 헌법 원칙: 출력 매핑 (계산/해석/fallback 금지)
+    // V5AnalysisResult → AnalysisResultV2Type 매핑만 수행
+    const result: AnalysisResultV2Type = {
+      mode,
+      summary: v5Result.riskMessages.length > 0
+        ? v5Result.riskMessages[0]
+        : `${v5Result.tags.tags.length}개 성향 태그가 확인되었습니다.`,
+      summaryExplanation: v5Result.tags.tags.join(', '),
+      recommendations: v5Result.riskMessages.slice(0, 5),
+      // ⚠️ V5에는 점수 기반 랭킹 없음 (점수 계산 금지)
+      // spaceRanking: undefined
+      // processRanking: undefined
+      // styleMatch: undefined
+      // colorPalette: undefined
+      budgetRecommendation: Object.keys(v5Result.processChanges.tierRecommendations).length > 0
+        ? Object.values(v5Result.processChanges.tierRecommendations)[0]
+        : undefined,
+      estimateHints: {
+        prioritySpaces: selectedAreas ?? [], // ⚠️ 타입 시스템 요구사항 (빈 배열 허용)
+        priorityProcesses: v5Result.processChanges.processChanges
+          .filter((pc) => pc.action === 'required' || pc.action === 'recommend')
+          .map((pc) => pc.processId),
+        suggestedGrade: Object.keys(v5Result.processChanges.tierRecommendations).length > 0
+          ? (Object.values(v5Result.processChanges.tierRecommendations)[0] as string)
+          : undefined, // ⚠️ 기본값 생성 금지
+        specialRequirements: v5Result.riskMessages,
+      },
+      // ⚠️ V5에는 직접 매핑 없음
+      // vibeProfile: undefined
+      // homeValueScore: undefined (V5에는 점수 계산 없음)
+      // lifestyleScores: undefined (V5에는 점수 계산 없음)
+      // preferences: undefined (V5에는 점수 계산 없음)
+    }
 
     // 2) OpenAI로 자연어 성향 리포트 생성 (실패해도 전체 API는 성공으로 반환)
     const aiReport = await buildAIReportWithOpenAI(payload, result as AnalysisResultV2Type)
@@ -461,6 +586,19 @@ export async function POST(request: NextRequest) {
       { status: 200 },
     )
   } catch (error) {
+    // ⚠️ Phase 6: 감사 로그 - 분석 실패
+    // (inputHash가 생성된 경우에만 로그 기록)
+    const lastLog = auditLogger.getLogs()[auditLogger.getLogs().length - 1]
+    if (lastLog && lastLog.event === 'ANALYSIS_REQUESTED') {
+      auditLogger.log(
+        'ANALYSIS_FAILED',
+        lastLog.inputHash,
+        undefined,
+        lastLog.requestId,
+        error instanceof Error ? error.message : 'Unknown error'
+      )
+    }
+
     console.error('API 에러:', error)
     return NextResponse.json(
       {

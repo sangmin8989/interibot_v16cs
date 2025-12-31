@@ -8,16 +8,27 @@
  * 기본 정보 입력 (V5 명세서 STEP 1)
  */
 export interface BasicInfoInput {
-  // 필수 필드 (7개)
+  // 필수 필드 (5개)
   housing_type: 'apartment' | 'villa' | 'officetel' | 'detached'
   pyeong_range: 'under10' | '11to15' | '16to25' | '26to40' | 'over40'
-  building_year: number // 예: 2000
-  ownership: 'owned' | 'jeonse' | 'monthly'
+  // ⚠️ V5 헌법 원칙: 기본값 생성 금지, 해석/추론 금지
+  // building_year는 선택 필드 (V4 입력에 없을 수 있음)
+  building_year?: number // 예: 2000
   stay_plan: 'under1y' | '1to3y' | '3to5y' | 'over5y' | 'unknown'
   family_type: ('infant' | 'child' | 'teen' | 'adult' | 'elderly' | 'pet')[]
   budget_range: 'under2000' | '2000to4000' | '4000to6000' | 'over6000' | 'unknown'
   
-  // 선택 필드 (3개)
+  // 선택 필드 (4개)
+  /**
+   * 소유 형태
+   * 
+   * ⚠️ V5 원칙: ownership is optional because legacy inputs (V4) do not provide this field.
+   * No default or inferred value is allowed at adapter level.
+   * 
+   * V4 입력 구조상 이 필드가 없으므로, 어댑터에서 기본값 생성 금지.
+   * 없는 정보는 없다는 원칙에 따라 optional로 정의.
+   */
+  ownership?: 'owned' | 'jeonse' | 'monthly'
   purpose?: 'live' | 'sell' | 'rent'
   remote_work?: 'none' | '1to2days' | '3plus'
   cook_freq?: 'rarely' | 'sometimes' | 'daily'
@@ -77,4 +88,11 @@ export interface PersonalityTags {
   tags: string[]
   triggered_by: Record<string, string> // 태그 -> 트리거 질문
 }
+
+
+
+
+
+
+
 

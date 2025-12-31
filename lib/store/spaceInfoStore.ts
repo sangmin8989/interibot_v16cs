@@ -49,6 +49,13 @@ export interface SpaceInfo {
   livingYears?: number // 예상 거주 기간 (년)
   // 추가 정보 (자유 입력)
   additionalNotes?: string // 추가로 알려주고 싶은 내용 (예: 2살 아기가 있어요, 강아지가 있어요 등)
+  // V5 명세서 필드
+  buildingYear?: number // 건축 연도
+  ownership?: 'owned' | 'jeonse' | 'monthly' | null // 점유 형태
+  stayPlan?: 'under1y' | '1to3y' | '3to5y' | 'over5y' | 'unknown' | null // 거주 계획
+  cookFreq?: 'sometimes' | 'daily' | 'rarely' | null // 요리 빈도 (V5 BasicInfoInput 타입과 일치)
+  purpose?: 'live' | 'sell' | 'rent' | null // 공사 목적
+  remoteWork?: 'none' | '1to2days' | '3plus' | null // 재택 근무
   timestamp: string
 }
 

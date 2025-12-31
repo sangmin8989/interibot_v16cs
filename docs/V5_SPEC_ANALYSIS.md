@@ -548,3 +548,10 @@ function convertV3ToV5(v3Data: V3PersonalityData): V5PersonalityData {
 **작성자**: AI Assistant  
 **최종 수정**: 2025년 12월 18일
 
+
+
+
+
+
+
+

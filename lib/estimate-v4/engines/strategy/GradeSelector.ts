@@ -76,3 +76,10 @@ function getTraitScore(
   return scores.find(s => s.traitCode === code)?.score ?? 5
 }
 
+
+
+
+
+
+
+

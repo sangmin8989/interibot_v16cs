@@ -258,3 +258,10 @@ console.log('조정된 등급:', adjustedGrade);
 
 
 
+
+
+
+
+
+
+

@@ -104,3 +104,10 @@ function getDefaultTraitScores(): TraitScoreV4[] {
   }))
 }
 
+
+
+
+
+
+
+

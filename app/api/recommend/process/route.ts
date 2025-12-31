@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { callAIWithLimit } from '@/lib/api/ai-call-limiter'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -189,16 +190,28 @@ ${spaceInfo.ageRanges ? `- 가족 연령대: ${spaceInfo.ageRanges.join(', ')}` 
 ※ 철거 공정은 포함하지 마세요 (고객이 별도 선택)
 ※ 선택된 공간에 해당하는 공정만 추천하세요`
 
+    // Phase 4: AI 호출 래퍼 적용 (enableLimit=false)
+    const enableLimit = process.env.NEXT_PUBLIC_AI_RATE_LIMIT === 'true';
+    const sessionId = request.headers.get('x-session-id') || undefined;
+    
     // API 호출 (GPT-4o-mini 사용)
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',  // gpt-4o-mini에서 변경 (API 호환성)
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.4, // 약간의 창의성
-      max_tokens: 1500,
+    const response = await callAIWithLimit({
+      sessionId,
+      action: 'PROCESS_RECOMMEND',
+      prompt: { systemPrompt, userPrompt },
+      enableLimit: false, // 🔒 Phase 4: 반드시 false
+      aiCall: async () => {
+        return await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',  // gpt-4o-mini에서 변경 (API 호환성)
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.4, // 약간의 창의성
+          max_tokens: 1500,
+        });
+      },
     })
 
     const result = JSON.parse(response.choices[0]?.message?.content || '{}')

@@ -42,17 +42,23 @@ function convertPyeongToNumber(range: string): number {
  */
 export function generateHypothesis(input: BasicInfoInput): HypothesisResult {
   const currentYear = new Date().getFullYear()
-  const buildingAge = currentYear - input.building_year
+  // ⚠️ V5 헌법 원칙: building_year는 선택 필드
+  const buildingAge = input.building_year !== undefined && input.building_year !== null
+    ? currentYear - input.building_year
+    : undefined
   const pyeongNum = convertPyeongToNumber(input.pyeong_range)
 
   return {
     // 노후 리스크
+    // ⚠️ V5 헌법 원칙: building_year가 없으면 'LOW' (해석/추론 금지)
     old_risk:
-      buildingAge >= 20
-        ? 'HIGH'
-        : buildingAge >= 15
-          ? 'MEDIUM'
-          : 'LOW',
+      buildingAge === undefined
+        ? 'LOW'
+        : buildingAge >= 20
+          ? 'HIGH'
+          : buildingAge >= 15
+            ? 'MEDIUM'
+            : 'LOW',
 
     // 수납 리스크
     storage_risk:
@@ -108,4 +114,11 @@ export function generateHypothesis(input: BasicInfoInput): HypothesisResult {
           : 'LOW',
   }
 }
+
+
+
+
+
+
+
 

@@ -262,3 +262,10 @@ const spaceProcessMap: Record<string, string[]> = {
 
 **분석 완료!** 🎉
 
+
+
+
+
+
+
+

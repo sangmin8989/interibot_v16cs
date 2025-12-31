@@ -2,6 +2,8 @@
  * V4 견적 결과 타입 정의
  */
 
+import type { GradeV4 } from './strategy.types'
+
 /**
  * 견적 상태
  */
@@ -236,6 +238,14 @@ export interface UIEstimateV4 {
   hasPersonalityData: boolean
   
   /** 성향 분석 기반 설명 (버그 4 개선) */
-  personalityBasedMessage: string
+  /** 실패 케이스에서는 null (UI에서 렌더링하지 않음) */
+  personalityBasedMessage: string | null
 }
+
+
+
+
+
+
+
 

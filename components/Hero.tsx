@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import { ArrowRight, Sparkles } from 'lucide-react'
 
 export default function Hero() {
   const router = useRouter()
@@ -10,20 +11,14 @@ export default function Hero() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const handleStartClick = () => {
+    router.push('/v5')
+  }
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* 배경 영상/이미지 */}
       <div className="absolute inset-0 z-0">
-        {/* 배경 영상이 있다면 */}
-        {/* <video
-          autoPlay
-          loop
-          muted
-          className="w-full h-full object-cover"
-        >
-          <source src="/videos/hero-background.mp4" type="video/mp4" />
-        </video> */}
-        
         {/* 배경 그라디언트 (누드핑크 톤) */}
         <div className="w-full h-full bg-gradient-to-br from-argen-400 via-argen-500 to-argen-700">
           <div className="absolute inset-0 bg-argen-900/20"></div>
@@ -67,29 +62,66 @@ export default function Hero() {
             <br />
             <span className="text-roseSoft">AI 인테리어 설계사</span>
           </h1>
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-white/95 mb-10 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-white/95 mb-32 max-w-2xl mx-auto leading-relaxed">
             집과 가족의 성향을 분석해, 예산에 맞는 설계와 스타일을 한 번에 제안합니다.
           </p>
 
-          {/* CTA 버튼 2개 */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          {/* 메인 CTA 버튼 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+          >
             <motion.button
               whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => scrollToSection('modes')}
-              className="w-full sm:w-auto bg-argen-500 text-white rounded-full px-8 py-4 font-semibold text-base md:text-lg hover:bg-argen-600 transition-all shadow-lg hover:shadow-xl min-h-[52px]"
+              whileTap={{ scale: 0.98 }}
+              onClick={handleStartClick}
+              className="group relative inline-flex items-center gap-3 px-8 py-4 
+                         bg-[#FFFAE0]
+                         text-[#9B6244] rounded-full text-lg font-bold
+                         transition-all duration-300
+                         overflow-hidden
+                         border-2 border-white/30
+                         hover:shadow-lg hover:shadow-yellow-100/50"
+              style={{
+                boxShadow: '0 0 25px rgba(255, 255, 255, 0.7), 0 0 10px rgba(255, 255, 255, 0.4)'
+              }}
             >
-              무료로 시작하기
+              {/* 골드 글로우 테두리 (호버 시) */}
+              <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                   style={{
+                     boxShadow: '0 0 20px rgba(255, 255, 200, 0.5), inset 0 0 20px rgba(255, 255, 200, 0.2)'
+                   }}
+              />
+              
+              {/* Shimmer 애니메이션 (호버 시) */}
+              <div className="absolute inset-0 w-full h-full shimmer-animation opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+              {/* 반짝이는 점 3개 */}
+              <span className="absolute top-2 left-4 w-1.5 h-1.5 bg-[#9B6244]/60 rounded-full sparkle-animation" 
+                    style={{ animationDelay: '0s' }} />
+              <span className="absolute top-3 right-8 w-1.5 h-1.5 bg-[#9B6244]/60 rounded-full sparkle-animation" 
+                    style={{ animationDelay: '0.3s' }} />
+              <span className="absolute bottom-2 left-1/2 w-1.5 h-1.5 bg-[#9B6244]/60 rounded-full sparkle-animation" 
+                    style={{ animationDelay: '0.6s' }} />
+
+              {/* 텍스트 */}
+              <span className="relative z-10 flex items-center gap-3">
+                <Sparkles className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                <span>AI 설계 시작하기</span>
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+              </span>
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => scrollToSection('features')}
-              className="w-full sm:w-auto bg-transparent border-2 border-white/80 text-white rounded-full px-8 py-4 font-semibold text-base md:text-lg hover:bg-white/20 transition-all min-h-[52px]"
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="mt-6 text-white/70 text-sm"
             >
-              더 알아보기
-            </motion.button>
-          </div>
+              약 2분 소요 · 무료 · 회원가입 없음
+            </motion.p>
+          </motion.div>
         </motion.div>
       </div>
 
@@ -112,6 +144,7 @@ export default function Hero() {
           />
         </motion.div>
       </motion.div>
+
     </section>
   )
 }

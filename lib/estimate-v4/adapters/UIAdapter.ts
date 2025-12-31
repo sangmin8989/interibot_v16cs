@@ -33,16 +33,15 @@ export function adaptForUI(
       personalityMatch: { score: 0, highlights: [] },
       warnings: [],
       errorMessage: estimate.failures?.reasons[0] ?? '견적 계산 실패',
-      hasPersonalityData: personality.traitScores.length > 0,
-      personalityBasedMessage: personality.traitScores.length > 0
-        ? '고객님의 성향 분석 결과를 반영한 맞춤 견적입니다.'
-        : '특정 선택 기준 없이 일반적인 조합으로 구성된 결과입니다.',
+      // ⚠️ 실패 케이스: 성향 분석 기반 추천이 아니므로 명시적으로 false/null 설정
+      hasPersonalityData: false,
+      personalityBasedMessage: null,
     }
   }
 
   // 성공 시
   const summary = estimate.summary!
-  const gradeInfo = GRADE_INFO[estimate.meta.grade]
+  const gradeInfo = GRADE_INFO[estimate.meta.grade as keyof typeof GRADE_INFO]
 
   // 버그 1 방지: 선택된 공간의 공정만 필터링
   // breakdown이 없으면 실패로 처리
@@ -72,12 +71,9 @@ export function adaptForUI(
       errorMessage: selectedSpaces.length === 0
         ? '선택된 공간이 없어 견적을 계산할 수 없습니다. 공사 범위를 다시 선택해주세요.'
         : '선택된 공정이 없어 견적을 계산할 수 없습니다. 공정을 다시 선택해주세요.',
-      hasPersonalityData: personality.traitScores.length > 0 && 
-                         personality.traitScores.some(s => s.confidence > 0.5),
-      personalityBasedMessage: personality.traitScores.length > 0 && 
-                               personality.traitScores.some(s => s.confidence > 0.5)
-        ? '고객님의 성향 분석 결과를 반영한 맞춤 견적입니다.'
-        : '특정 선택 기준 없이 일반적인 조합으로 구성된 결과입니다.',
+      // ⚠️ 실패 케이스: 성향 분석 기반 추천이 아니므로 명시적으로 false/null 설정
+      hasPersonalityData: false,
+      personalityBasedMessage: null,
     }
   }
 
@@ -207,4 +203,11 @@ function generateWarnings(
 
   return warnings
 }
+
+
+
+
+
+
+
 

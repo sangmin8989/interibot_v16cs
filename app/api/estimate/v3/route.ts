@@ -57,6 +57,25 @@ function normalizeEstimateInput(input: EstimateInputV3): {
 }
 
 export async function POST(request: NextRequest) {
+  // ===== Phase 0: 구버전 API 차단 =====
+  console.log('[DEPRECATED_API_BLOCK] 구버전 견적 API 접근 차단: /api/estimate/v3');
+  
+  return NextResponse.json(
+    {
+      ok: false,
+      error: {
+        code: 'DEPRECATED_API',
+        severity: 'BLOCK',
+        userMessage: '이 API는 더 이상 사용되지 않습니다. 공식 견적 API를 사용해주세요.',
+        debug: {
+          deprecated: '/api/estimate/v3',
+          official: '/api/estimate/v4',
+        },
+      },
+    },
+    { status: 410 } // 410 Gone
+  );
+  // ===== /Phase 0: 구버전 API 차단 =====
   // ✅ 스코프 문제 해결: input을 함수 상위 스코프로 이동
   let input: EstimateInputV3 | null = null
   

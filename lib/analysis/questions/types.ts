@@ -15,7 +15,7 @@ export type PreferenceCategory =
   | 'sleep_pattern'
   | 'hobby_lifestyle';
 
-export const PREFERENCE_CATEGORIES: PreferenceCategory[] = [
+export const PREFERENCE_CATEGORIES = [
   'space_sense',
   'sensory_sensitivity',
   'cleaning_preference',
@@ -31,7 +31,7 @@ export const PREFERENCE_CATEGORIES: PreferenceCategory[] = [
   'life_routine',
   'sleep_pattern',
   'hobby_lifestyle',
-];
+] as const satisfies readonly PreferenceCategory[];
 
 export interface AnswerOption {
   id: string;

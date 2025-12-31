@@ -41,7 +41,8 @@ export async function getLaborRateStrict(
     if (productivityError) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 DB 조회 오류: ${productivityError.message})`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 DB 조회 오류: ${productivityError.message})`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
@@ -49,7 +50,8 @@ export async function getLaborRateStrict(
     if (!productivityData) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 데이터 없음: ${request.processId})`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 데이터 없음: ${request.processId})`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
@@ -65,7 +67,8 @@ export async function getLaborRateStrict(
     if (costError) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 단가 DB 조회 오류: ${costError.message})`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 단가 DB 조회 오류: ${costError.message})`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
@@ -73,7 +76,8 @@ export async function getLaborRateStrict(
     if (!costData) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 단가 데이터 없음: ${request.processId})`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 단가 데이터 없음: ${request.processId})`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
@@ -106,21 +110,24 @@ export async function getLaborRateStrict(
     if (dailyOutput === null || dailyOutput === undefined || dailyOutput <= 0) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 정보 없음: dailyOutput)`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 정보 없음: dailyOutput)`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
     if (crewSize === null || crewSize === undefined || crewSize <= 0) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 정보 없음: crewSize)`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 생산성 정보 없음: crewSize)`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
     if (ratePerPersonDay === null || ratePerPersonDay === undefined || ratePerPersonDay <= 0) {
       throw new EstimateValidationError({
         processId: request.processId,
-        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 단가 정보 없음: ratePerPersonDay)`
+        reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 단가 정보 없음: ratePerPersonDay)`,
+        failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
       })
     }
 
@@ -144,10 +151,18 @@ export async function getLaborRateStrict(
     // ✅ 기타 에러는 EstimateValidationError로 변환
     throw new EstimateValidationError({
       processId: request.processId,
-      reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 조회 예외: ${error instanceof Error ? error.message : '알 수 없는 오류'})`
+      reason: `견적에 필요한 필수 단가/노무 정보가 DB에 존재하지 않습니다. (노무 조회 예외: ${error instanceof Error ? error.message : '알 수 없는 오류'})`,
+      failedAt: 'MATERIAL_OR_LABOR_VALIDATION'
     })
   }
 }
+
+
+
+
+
+
+
 
 
 

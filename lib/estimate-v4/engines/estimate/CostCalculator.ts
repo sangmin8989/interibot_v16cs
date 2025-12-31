@@ -149,8 +149,10 @@ const PROCESS_MATERIAL_MAP: Record<string, {
 
 /**
  * 공정별 노무 정보 매핑
+ * 
+ * ⚠️ 'SYSTEM'은 실제 공정이 아니므로 제외
  */
-const PROCESS_LABOR_MAP: Record<ProcessId, {
+const PROCESS_LABOR_MAP: Record<Exclude<ProcessId, 'SYSTEM'>, {
   unit: 'm2' | 'EA' | 'SET' | 'day' | 'team'
   totalQuantity: (pyeong: number) => number
   dailyOutput: number
@@ -286,6 +288,17 @@ export async function calculateProcessCosts(
         grade === 'ARGEN_O' ? 'brand_premium' :
         'brand_argen' // 기본값
 
+      // ✅ 디버깅 로그 추가
+      console.log('🔍 [V4] 등급별 브랜드 선택:', {
+        grade,
+        brandColumn,
+        processId: heongbeopProcessId,
+        category: {
+          category1: materialMapping.category1,
+          category2: materialMapping.category2,
+        },
+      })
+
       const materialRequest: MaterialRequest = {
         processId: heongbeopProcessId,
         space,
@@ -321,7 +334,9 @@ export async function calculateProcessCosts(
   }
 
   // 3. LaborRequest 생성 및 조회
-  const laborMapping = PROCESS_LABOR_MAP[heongbeopProcessId]
+  // ⚠️ 'SYSTEM'은 호출부에서 차단되므로 여기서는 체크 불필요
+  // ⚠️ 타입 안정성: PROCESS_LABOR_MAP은 Exclude<ProcessId, 'SYSTEM'>이므로 타입 단언 사용
+  const laborMapping = PROCESS_LABOR_MAP[heongbeopProcessId as Exclude<ProcessId, 'SYSTEM'>]
   if (!laborMapping) {
     throw new Error(`노무 정보 없음: ${heongbeopProcessId}`)
   }
@@ -358,8 +373,9 @@ export async function calculateProcessCosts(
   }
 
   // 4. 검증 (자재가 있을 때만)
+  // ⚠️ 타입 안정성: validateProcessBlock은 ProcessId 타입을 요구하므로 heongbeopProcessId 사용
   if (materials.length > 0) {
-    validateProcessBlock(processId, materials, labor)
+    validateProcessBlock(heongbeopProcessId, materials, labor)
   }
 
   // 5. 합계 계산
@@ -376,7 +392,7 @@ export async function calculateProcessCosts(
 
   return {
     processId,
-    processName: getProcessName(processId),
+    processName: getProcessName(heongbeopProcessId),
     spaces: spaces.length > 0 ? spaces : [space],  // 버그 1 방지: 공간 정보 포함
     materials,
     labor,
@@ -389,18 +405,25 @@ export async function calculateProcessCosts(
 /**
  * 공정명 가져오기
  */
-function getProcessName(processId: string): string {
-  const names: Record<string, string> = {
-    kitchen_core: '주방',
-    bathroom_waterproof: '욕실 방수',
-    storage_system: '수납 시스템',
-    soundproof: '방음',
-    lighting: '조명',
-    flooring: '바닥',
-    wallpaper: '도배',
-    window: '창호',
-    door: '문',
+function getProcessName(processId: ProcessId): string {
+  // ⚠️ 헌법 ProcessId 타입에 맞는 공정명 매핑
+  // ⚠️ 'SYSTEM'은 실제 공정이 아니므로 제외
+  const names: Record<Exclude<ProcessId, 'SYSTEM'>, string> = {
     demolition: '철거',
+    finish: '마감',
+    electric: '조명/전기',
+    kitchen: '주방',
+    bathroom: '욕실',
+    door: '문',
+    window: '창호',
+    storage: '수납',
+    waterproof: '방수',
+    plumbing: '설비',
+    waste: '폐기물',
+  }
+  // 'SYSTEM'은 특수 값이므로 별도 처리
+  if (processId === 'SYSTEM') {
+    return '시스템'
   }
   return names[processId] || processId
 }
@@ -429,4 +452,11 @@ export function calculateSummary(
     costPerPyeong: Math.round((grandTotal + vatAmount + bufferAmount) / pyeong),
   }
 }
+
+
+
+
+
+
+
 

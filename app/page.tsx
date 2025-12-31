@@ -2,7 +2,6 @@
 
 import Hero from '@/components/Hero'
 import FeaturesSection from '@/components/landing/FeaturesSection'
-import ModeSection from '@/components/landing/ModeSection'
 import TrustSection from '@/components/landing/TrustSection'
 
 export default function Home() {
@@ -14,10 +13,7 @@ export default function Home() {
       {/* 2. AI 기능 소개 섹션 */}
       <FeaturesSection />
 
-      {/* 3. 분석 모드 선택 섹션 */}
-      <ModeSection />
-
-      {/* 4. 신뢰/CTA 섹션 */}
+      {/* 3. 신뢰/CTA 섹션 */}
       <TrustSection />
 
       {/* 5. Contact Us 섹션 */}

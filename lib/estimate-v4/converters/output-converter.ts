@@ -164,3 +164,10 @@ function calculatePersonalityMatch(
   return avgScore / 10 // 0-1 범위로 정규화
 }
 
+
+
+
+
+
+
+

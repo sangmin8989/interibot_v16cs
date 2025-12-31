@@ -22,9 +22,25 @@ import type { EstimateGenerationOptions } from '@/lib/types/헌법_견적_타입
  * 헌법 v1.1 기반 견적 계산 API
  */
 export async function POST(request: NextRequest) {
-  try {
-    // 요청 본문 파싱
-    const body = await request.json()
+  // ===== Phase 0: 구버전 API 차단 =====
+  console.log('[DEPRECATED_API_BLOCK] 구버전 견적 API 접근 차단: /api/estimate/constitution');
+  
+  return NextResponse.json(
+    {
+      ok: false,
+      error: {
+        code: 'DEPRECATED_API',
+        severity: 'BLOCK',
+        userMessage: '이 API는 더 이상 사용되지 않습니다. 공식 견적 API를 사용해주세요.',
+        debug: {
+          deprecated: '/api/estimate/constitution',
+          official: '/api/estimate/v4',
+        },
+      },
+    },
+    { status: 410 } // 410 Gone
+  );
+  // ===== /Phase 0: 구버전 API 차단 =====
 
     // 입력 검증
     if (!body.pyeong || typeof body.pyeong !== 'number' || body.pyeong <= 0) {
@@ -85,10 +101,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     // ✅ EstimateValidationError 처리 (헌법 v1.1)
     if (error instanceof EstimateValidationError) {
-      // ✅ 자재/노무 관련 실패 판별: processId가 'system'이 아니면 자재/노무 관련으로 간주
-      // (헌법 v1.1: material-service-strict, labor-service-strict에서 발생하는 에러는
-      //  processId가 실제 공정 ID를 가짐)
-      const isMaterialOrLaborError = error.processId !== 'system'
+      // ✅ 자재/노무 관련 실패 판별: failedAt으로 판단
+      const isMaterialOrLaborError =
+        error.failedAt === 'MATERIAL_OR_LABOR_VALIDATION'
 
       const failedAt = isMaterialOrLaborError
         ? 'MATERIAL_OR_LABOR_VALIDATION'
@@ -135,6 +150,13 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+
+
+
+
+
+
 
 
 

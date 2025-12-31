@@ -16,6 +16,13 @@ import { getArgenRecommendation } from './argen-recommender'
 import { generateRiskMessages } from './risk-message-generator'
 import { validateAnalysis } from './validator'
 import { detectChoiceParalysis, getParalysisStrategy } from './choice-paralysis'
+import { explainV5Result } from './explain'
+import type { ExplainResult } from './explain'
+import { determineDNAType } from './dna/dna-determiner'
+import { buildDNAExplainBridge } from './dna/dna-explain-bridge'
+import type { DNAWithExplain } from './dna/dna-explain-bridge'
+import { buildEstimateOptimization } from './estimate'
+import type { EstimateOptimization } from './estimate'
 
 /**
  * V5 질문 생성 결과
@@ -45,6 +52,9 @@ export interface V5AnalysisResult {
   validation: ReturnType<typeof validateAnalysis>
   choiceParalysis: ReturnType<typeof detectChoiceParalysis>
   paralysisStrategy: ReturnType<typeof getParalysisStrategy>
+  explain: ExplainResult
+  dna: DNAWithExplain
+  estimateOptimization: EstimateOptimization
 }
 
 /**
@@ -141,6 +151,30 @@ export function analyzeV5Complete(
   const choiceParalysis = detectChoiceParalysis(answers)
   const paralysisStrategy = getParalysisStrategy(choiceParalysis)
 
+  // 11. Explain Layer 생성
+  // ⚠️ Phase 4-1: 이미 확정된 결과를 문장으로 "번역"만 수행
+  const explain = explainV5Result({
+    tags,
+    processChanges,
+    basicInfo: basicInput,
+  })
+
+  // 12. DNA 유형 결정
+  // ⚠️ Phase 4-2: 태그 기반으로 DNA 유형 결정
+  const dnaType = determineDNAType(tags)
+
+  // 13. DNA Explain Bridge 생성
+  // ⚠️ Phase 4-2: Explain 결과를 DNA와 연결
+  const dnaExplain = buildDNAExplainBridge(dnaType, explain)
+  const dna: DNAWithExplain = {
+    ...dnaType,
+    explain: dnaExplain,
+  }
+
+  // 14. 견적 최적화 정책 생성
+  // ⚠️ Phase 5-1: 태그 → 정책 매핑만 수행
+  const estimateOptimization = buildEstimateOptimization(tags.tags)
+
   return {
     questions,
     hypothesis,
@@ -151,6 +185,9 @@ export function analyzeV5Complete(
     validation,
     choiceParalysis,
     paralysisStrategy,
+    explain,
+    dna,
+    estimateOptimization,
   }
 }
 
@@ -161,8 +198,11 @@ export function isV5EngineAvailable(spaceInfo: SpaceInfo): boolean {
   // 최소 필수 정보 확인
   return (
     spaceInfo.pyeong > 0 &&
-    spaceInfo.housingType !== undefined &&
-    (spaceInfo.buildingYear !== undefined || true) // buildingYear는 기본값 사용 가능
+    spaceInfo.housingType !== undefined
+    // buildingYear는 input-converter에서 처리
   )
 }
+
+
+
 

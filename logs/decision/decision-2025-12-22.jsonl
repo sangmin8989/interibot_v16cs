@@ -1,0 +1,1 @@
+{"occurredAt":"2025-12-22T09:50:43.013Z","target":"KITCHEN_COUNTERTOP","result":"PASS","payloadSummary":{"keyFlags":["BUDGET_MODERATE"],"material":"PET_GLOSS"},"thresholdsSnapshot":{"defect":3,"maintenance":3,"asset":4},"reasons":[{"key":"reason_0","weight":1}]}

@@ -10,8 +10,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { calculateRuleEngineV0, type RuleEngineInput } from '@/lib/estimate/rule-engine-v0'
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
+  // ===== Phase 0: 구버전 API 차단 =====
+  console.log('[DEPRECATED_API_BLOCK] 구버전 견적 API 접근 차단: /api/estimate/rule-engine-v0');
+  
+  return NextResponse.json(
+    {
+      ok: false,
+      error: {
+        code: 'DEPRECATED_API',
+        severity: 'BLOCK',
+        userMessage: '이 API는 더 이상 사용되지 않습니다. 공식 견적 API를 사용해주세요.',
+        debug: {
+          deprecated: '/api/estimate/rule-engine-v0',
+          official: '/api/estimate/v4',
+        },
+      },
+    },
+    { status: 410 } // 410 Gone
+  );
+  // ===== /Phase 0: 구버전 API 차단 =====
     
     // 입력 검증
     const input: RuleEngineInput = {
@@ -49,6 +66,13 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+
+
+
+
+
+
 
 
 

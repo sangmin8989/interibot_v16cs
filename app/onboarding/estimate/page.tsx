@@ -191,6 +191,9 @@ function EstimatePageContent() {
   const [detailOptions, setDetailOptions] = useState<any>(null)
   const [isHydrated, setIsHydrated] = useState(false)
   
+  // Phase 1: Decision Trace 설명 (고객용)
+  const [decisionExplanation, setDecisionExplanation] = useState<string[]>([])
+  
   // ✅ 계산된 고객 정보 상태 (UI에서 사용)
   const [calculatedPy, setCalculatedPy] = useState<number>(34)
   const [calculatedRoomCount, setCalculatedRoomCount] = useState<number>(3)
@@ -751,13 +754,22 @@ function EstimatePageContent() {
           body: JSON.stringify(requestBody),
         })
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          console.error('❌ API 에러:', errorData)
-          throw new Error(errorData.error || errorData.message || `API 에러: ${response.status}`)
-        }
-
         const apiResult = await response.json()
+
+        // ===== Phase 0: BLOCK 처리 (DB 게이트) =====
+        if (apiResult.ok === false && apiResult.error?.severity === 'BLOCK') {
+          console.log('[ESTIMATE_BLOCK] 프론트: BLOCK 응답 수신, 결과 화면 차단', apiResult.error);
+          setError(apiResult.error.userMessage || '견적 산출에 필요한 필수 단가 데이터가 준비되지 않았습니다.');
+          setIsCalculating(false);
+          return; // 결과 화면 렌더링 중단
+        }
+        // ===== /Phase 0: BLOCK 처리 =====
+
+        if (!response.ok) {
+          const errorData = apiResult;
+          console.error('❌ API 에러:', errorData)
+          throw new Error(errorData.error?.userMessage || errorData.message || `API 에러: ${response.status}`)
+        }
         
         if (apiResult.status !== 'SUCCESS') {
           throw new Error(apiResult.message || 'V4 견적 계산 실패')
@@ -765,6 +777,14 @@ function EstimatePageContent() {
 
         // ✅ API 응답에서 result 추출 (UIEstimateV4 타입)
         const v4Result: UIEstimateV4 = apiResult.result
+
+        // Phase 1: Decision Trace 설명 저장 (고객용만)
+        if (apiResult.decision_explanation_split?.customer) {
+          setDecisionExplanation(apiResult.decision_explanation_split.customer);
+        } else if (apiResult.decision_explanation) {
+          // 하위 호환: 기존 단일 설명도 지원
+          setDecisionExplanation([apiResult.decision_explanation]);
+        }
 
         console.log('✅ V4 견적 결과:', {
           isSuccess: v4Result.isSuccess,
@@ -922,18 +942,36 @@ function EstimatePageContent() {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'V4 견적 계산 실패')
-      }
-
       const apiResult = await response.json()
+
+      // ===== Phase 0: BLOCK 처리 (DB 게이트) =====
+      if (apiResult.ok === false && apiResult.error?.severity === 'BLOCK') {
+        console.log('[ESTIMATE_BLOCK] 프론트: BLOCK 응답 수신 (등급별), 결과 화면 차단', apiResult.error);
+        setError(apiResult.error.userMessage || '견적 산출에 필요한 필수 단가 데이터가 준비되지 않았습니다.');
+        setIsCalculating(false);
+        setCalculatingGrade(null);
+        return; // 결과 화면 렌더링 중단
+      }
+      // ===== /Phase 0: BLOCK 처리 =====
+
+      if (!response.ok) {
+        const errorData = apiResult;
+        throw new Error(errorData.error?.userMessage || errorData.message || 'V4 견적 계산 실패')
+      }
       
       if (apiResult.status !== 'SUCCESS') {
         throw new Error(apiResult.message || 'V4 견적 계산 실패')
       }
 
       const v4Result: UIEstimateV4 = apiResult.result
+
+      // Phase 1: Decision Trace 설명 저장 (고객용만)
+      if (apiResult.decision_explanation_split?.customer) {
+        setDecisionExplanation(apiResult.decision_explanation_split.customer);
+      } else if (apiResult.decision_explanation) {
+        // 하위 호환: 기존 단일 설명도 지원
+        setDecisionExplanation([apiResult.decision_explanation]);
+      }
 
       // 해당 등급의 견적 저장
       setEstimatesByGrade(prev => ({
@@ -1559,27 +1597,25 @@ function EstimatePageContent() {
                           </div>
                         )}
 
-                        {/* 성향 매칭 정보 */}
-                        {currentEstimate.personalityMatch.score > 0 && (
-                          <div className="bg-purple-50 rounded-xl p-4 mb-6">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xl">🎯</span>
-                              <span className="font-bold text-gray-900">성향 매칭도</span>
-                              <span className="text-purple-600 font-bold">
-                                {currentEstimate.personalityMatch.score}%
-                              </span>
+                        {/* Phase 1: Decision Trace 설명 (고객용만 표시) */}
+                        {decisionExplanation.length > 0 && (
+                          <div className="bg-blue-50 rounded-xl p-4 mb-6">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-xl">📋</span>
+                              <span className="font-bold text-gray-900">견적 산출 기준</span>
                             </div>
-                            {currentEstimate.personalityMatch.highlights.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {currentEstimate.personalityMatch.highlights.map((highlight, idx) => (
-                                  <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
-                                    {highlight}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            <div className="space-y-2">
+                              {decisionExplanation.map((line, idx) => (
+                                <p key={idx} className="text-sm text-gray-700">
+                                  {line}
+                                </p>
+                              ))}
+                            </div>
                           </div>
                         )}
+
+                        {/* Phase 1: 점수/집값 방어도 노출 금지 (제거됨) */}
+                        {/* 기존 성향 매칭도 점수 표시 제거 - Phase 1 규칙 준수 */}
                       </div>
                     ) : (
                       /* 공정별 상세 (V4) */

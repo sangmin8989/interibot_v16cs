@@ -105,3 +105,10 @@ function getIconForOption(option: string): string {
   return '📌' // 기본 아이콘
 }
 
+
+
+
+
+
+
+

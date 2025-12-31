@@ -42,19 +42,31 @@ function convertPyeongToRange(pyeong: number): BasicInfoInput['pyeong_range'] {
  * 점유 형태 변환
  */
 function convertOwnership(
-  ownership?: SpaceInfo['ownership']
+  ownership?: string | null
 ): BasicInfoInput['ownership'] {
-  return ownership || 'owned'
+  // ⚠️ 헌법 원칙 2: 기본값 생성 금지
+  // ownership이 없으면 undefined 반환
+  if (!ownership) {
+    return undefined
+  }
+  // 타입 체크
+  if (ownership === 'owned' || ownership === 'jeonse' || ownership === 'monthly') {
+    return ownership
+  }
+  return undefined
 }
 
 /**
  * 거주 계획 변환
  */
 function convertStayPlan(
-  stayPlan?: SpaceInfo['stayPlan'],
+  stayPlan?: string | null,
   livingYears?: number
 ): BasicInfoInput['stay_plan'] {
-  if (stayPlan) return stayPlan
+  // 타입 체크
+  if (stayPlan === 'under1y' || stayPlan === '1to3y' || stayPlan === '3to5y' || stayPlan === 'over5y' || stayPlan === 'unknown') {
+    return stayPlan
+  }
 
   // livingYears 기반 변환
   if (livingYears !== undefined) {
@@ -121,10 +133,15 @@ function convertBudgetRange(
  * 공사 목적 변환
  */
 function convertPurpose(
-  purpose?: SpaceInfo['purpose'],
+  purpose?: string | null,
   livingPurpose?: SpaceInfo['livingPurpose']
 ): BasicInfoInput['purpose'] | undefined {
-  if (purpose) return purpose
+  // 타입 체크 및 변환
+  if (purpose === 'live') return 'live';
+  if (purpose === 'sell') return 'sell';
+  if (purpose === 'rent') return 'rent';
+  if (purpose === 'residence') return 'live';   // 역매핑
+  if (purpose === 'sale') return 'sell';        // 역매핑
 
   // livingPurpose 기반 변환
   if (livingPurpose === '실거주') return 'live'
@@ -138,10 +155,13 @@ function convertPurpose(
  * 재택 근무 변환
  */
 function convertRemoteWork(
-  remoteWork?: SpaceInfo['remoteWork'],
+  remoteWork?: string | null,
   lifestyleTags?: string[]
 ): BasicInfoInput['remote_work'] | undefined {
-  if (remoteWork) return remoteWork
+  // 타입 체크
+  if (remoteWork === 'none' || remoteWork === '1to2days' || remoteWork === '3plus') {
+    return remoteWork
+  }
 
   // lifestyleTags 기반 추론
   if (lifestyleTags?.includes('remoteWork')) return '3plus'
@@ -159,14 +179,23 @@ export function convertSpaceInfoToBasicInput(
   return {
     housing_type: convertHousingType(spaceInfo.housingType),
     pyeong_range: convertPyeongToRange(spaceInfo.pyeong),
-    building_year: spaceInfo.buildingYear || new Date().getFullYear() - 10, // 기본값: 10년 전
+    // ⚠️ V5 헌법 원칙: 기본값 생성 금지, 해석/추론 금지
+    // buildingYear가 없으면 undefined 반환 (있는 것만 전달)
+    building_year: spaceInfo.buildingYear ?? undefined,
     ownership: convertOwnership(spaceInfo.ownership),
     stay_plan: convertStayPlan(spaceInfo.stayPlan, spaceInfo.livingYears),
     family_type: convertFamilyType(spaceInfo.ageRanges, spaceInfo.lifestyleTags),
     budget_range: convertBudgetRange(spaceInfo.budget, spaceInfo.budgetAmount),
-    purpose: convertPurpose(spaceInfo.purpose, spaceInfo.livingPurpose),
-    remote_work: convertRemoteWork(spaceInfo.remoteWork, spaceInfo.lifestyleTags),
-    cook_freq: spaceInfo.cookFreq,
+    purpose: convertPurpose(undefined, spaceInfo.livingPurpose),
+    remote_work: convertRemoteWork(undefined, spaceInfo.lifestyleTags),
+    cook_freq: spaceInfo.cookFreq === null ? undefined : spaceInfo.cookFreq,
   }
 }
+
+
+
+
+
+
+
 

@@ -128,6 +128,26 @@ body {
   }
 }
 
+@keyframes shimmer {
+  0% { 
+    transform: translateX(-100%); 
+  }
+  100% { 
+    transform: translateX(100%); 
+  }
+}
+
+@keyframes sparkle {
+  0%, 100% { 
+    opacity: 0; 
+    transform: scale(0); 
+  }
+  50% { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-in-out;
 }
@@ -154,6 +174,23 @@ body {
 
 .animate-shake {
   animation: shake 0.3s ease-in-out;
+}
+
+.shimmer-animation {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  width: 100%;
+  height: 100%;
+  animation: shimmer 1.5s infinite;
+  pointer-events: none;
+}
+
+.sparkle-animation {
+  animation: sparkle 2s ease-in-out infinite;
 }
 
 /* 스크린 리더 전용 클래스 */

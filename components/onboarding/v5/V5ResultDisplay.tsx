@@ -205,12 +205,18 @@ function extractChanges(
     })
   }
 
-  // 옵션 변경 (주요한 것만)
+  // 옵션 변경 (엔진 계약에 맞춤)
   for (const oc of result.processChanges.optionChanges) {
-    if (oc.action === 'show' || oc.action === 'required') {
+    if (oc.action === 'prioritize') {
       changes.push({
         process: getOptionName(oc.optionId),
-        change: '옵션 추가',
+        change: '우선 적용',
+        reason: oc.reason,
+      })
+    } else if (oc.action === 'limit' || oc.action === 'hide') {
+      changes.push({
+        process: getOptionName(oc.optionId),
+        change: oc.action === 'limit' ? '제한' : '제외',
         reason: oc.reason,
       })
     }
@@ -263,4 +269,11 @@ function getOptionName(optionId: string): string {
   }
   return nameMap[optionId] || optionId
 }
+
+
+
+
+
+
+
 
