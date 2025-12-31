@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+
+// 동적 렌더링 강제 (빌드 타임 정적 생성 방지)
+export const dynamic = 'force-dynamic'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Share2, CheckCircle2, Plus, RefreshCw } from 'lucide-react'
